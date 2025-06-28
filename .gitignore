@@ -1,0 +1,8 @@
+*~
+*.sw?
+*.pyc
+\#*
+*.orig
+*.rej
+__pycache__/
+dev/venv

@@ -1,0 +1,21 @@
+services:
+  proxy:
+    image: caddy:alpine
+    hostname: proxy
+    container_name: proxy
+    ports:
+      - 5100:8000
+    volumes:
+      - $PWD/caddy.json:/etc/caddy/Caddyfile:ro
+
+  dashboard:
+    image: dashboard:dev
+    hostname: dashboard
+    container_name: dashboard
+    ports:
+      - "5001:5000"
+    restart: unless-stopped
+    volumes:
+      - .:/app/user-data:ro
+    healthcheck:
+      disable: true

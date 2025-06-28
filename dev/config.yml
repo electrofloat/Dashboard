@@ -1,0 +1,122 @@
+# Default authorization is always 'deny'
+# So if 'authelia_url' is not set and also no allow/deny criteria are set then everything will be denied
+# 'deny' and 'allow' are mutually exclusive. With these you can explicitly 'allow'/'deny' users.
+# if 'authelia_url' is set it will be consulted for authorization. If also 'allow' or 'deny' are set Authelia will only be consulted
+# if those rules are not matched already.
+
+# Optional
+# Contains global configurations
+app_config:
+  # Optional
+  # Url to your Authelia instance
+  authelia_url: https://auth.example.org
+
+  # Optional
+  # Can be either:
+  #   - a filename: it will be loaded from user-data/backgrounds/filename
+  #   - a url
+  #background: background.jpg
+
+  # Optional
+  # The subject(s) that can access the settings page. Uses Authelia's user:, group: subject form (https://www.authelia.com/configuration/security/access-control/#subject)
+  # For now this is not really a settings page but a template for a tile the check how it would look like on the main page with the given texts, icon and color
+  settings:
+    - 'user:testuser'
+# Optional
+# Definitions of networks that can be used to narrow the allow/deny criteria. Uses Authelia's network definitions form (https://www.authelia.com/configuration/definitions/network/)
+network:
+  internal:
+    - '10.0.0.0/24'
+
+# Mandatory
+# At least 1 tile is required
+tiles:
+    # Mandatory
+    # The title of the tile
+  - title: Zigbee2MQTT
+    # Optional
+    # Description appears on the second line of the tile
+    description: Zigbee configurator
+    # Optional
+    # The icon of the tile
+    # Can be either:
+    #   - a filename: it will be loaded from user-data/icons/filename
+    #   - a string starting with 'di-' an icon from https://dashboardicons.com/
+    icon: di-zigbee2mqtt
+    # Optional
+    # The background color of the tile
+    background: "#f80"
+    # Mandatory
+    # The url of the hosted app. This url will be checked with Authelia for authorization (if authelia_url is set)
+    url: https://zigbee2mqtt.example.org
+    # Optional
+    # This is either 'allow' or 'deny', they are mutually exclusive
+    # The subject(s) that will be allowed/denied access. Uses Authelia's user:, group: subject form (https://www.authelia.com/configuration/security/access-control/#subject)
+    allow: ["user:testuser"]
+    # Optional
+    # Can only be used with 'allow'/'deny'
+    # If given, it will only allow/deny access from the given network. Uses Authelia's networks form (https://www.authelia.com/configuration/security/access-control/#networks)
+    networks:
+      - internal
+  - title: Grafana
+    description: Interactive visualization platform
+    icon: di-grafana
+    url: https://grafana.example.org
+    deny:
+      - "user:testuser1"
+      - 'group:blacklist'
+    networks:
+      - internal
+      - '172.16.0.0/24'
+  - title: Healthchecks
+    description: Instant alerts for silently failing jobs
+    icon: di-healthchecks
+    background: "#fafbfc"
+    url: https://healthchecks.example.org
+    allow:
+      - "user:testuser"
+      - ["group:admins", "group:realadmins"]
+  - title: HomeAssistant
+    description: Home automation platform
+    icon: di-home-assistant
+    background: "#05a"
+    url: https://homeassistant.example.org
+    allow: ["user:testuser"]
+  - title: Immich
+    description: Photo and video backup/storage
+    icon: di-immich
+    url: https://immich.example.org
+    allow: ["user:testuser"]
+  - title: Linkding
+    description: Bookmarks storage
+    icon: di-linkding
+    background: "#192865"
+    url: https://linkding.example.org
+    allow: ["user:testuser"]
+  - title: PaperlessNgx
+    description: Document management system
+    icon: di-paperless-ngx
+    url: https://paperlessngx.example.org
+    allow: ["user:testuser"]
+  - title: Plex
+    description: Personal media management
+    icon: di-plex
+    background: "#520"
+    url: https://plex.example.org
+    allow: ["user:testuser"]
+  - title: Portainer
+    description: Docker container management system
+    icon: di-portainer
+    url: https://portainer.example.org
+    allow: ["user:testuser"]
+  - title: Wiki.js
+    icon: di-wikijs
+    background: "#fafbfc"
+    url: https://wikijs.example.org
+    allow: ["user:testuser"]
+  - title: Zwavejs2UI
+    description: Z-Wave to MQTT
+    icon: di-zwavejs2mqtt
+    background: "#08f"
+    url: https://zwavejsui.example.org
+    allow: ["user:testuser"]

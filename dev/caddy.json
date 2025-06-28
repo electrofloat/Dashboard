@@ -1,0 +1,8 @@
+http://:8000 {
+	bind 0.0.0.0
+	reverse_proxy dashboard:5000 {
+		header_up Remote-User "testuser"
+		header_up Remote-Groups "testgroup1,testgroup2"
+		header_up X-Forwarded-For "10.0.0.1"
+	}
+}

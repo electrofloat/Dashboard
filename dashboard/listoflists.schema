@@ -1,0 +1,19 @@
+'required':False,
+          'type':'list',
+          'minlength':1,
+          'schema':{
+            'anyof':[
+              {
+                'type':'list',
+                'minlength':1,
+                'schema':{
+                  'type':'string',
+                  'regex':'^(user:|group:).*'
+                }
+              },
+              {
+                'type':'string',
+                'regex':'^(user:|group:).*'
+              }
+            ]
+          }

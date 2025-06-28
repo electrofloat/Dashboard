@@ -1,0 +1,9 @@
+pip >= 22.1
+Flask
+requests
+pyyaml
+webcolors
+cerberus
+gunicorn
+pytest
+pytest-mock
