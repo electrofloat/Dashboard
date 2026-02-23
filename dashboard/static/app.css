@@ -1,3 +1,35 @@
+.loader {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+  border-top: 3px solid #FFF;
+  border-right: 3px solid transparent;
+  box-sizing: border-box;
+  animation: rotation 1s linear infinite;
+}
+
+@keyframes rotation {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.tile-wrapper {
+    opacity: 0;
+    transform: translateY(20px);
+    /*transition: opacity 0.4s ease-out, transform 0.4s ease-out;*/
+    transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.tile-wrapper.wrapper-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
 .black {
   color:#000!important
 }

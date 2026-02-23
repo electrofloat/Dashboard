@@ -1,19 +1,77 @@
-from flask import url_for
 import yaml
 import os
 from jsonschema import Draft202012Validator
-import string
 import ipaddress
 import re
 import webcolors
 import json
+import time
+import hashlib
+import base64
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from dashboard.auth import Auth
 
+class CommonTile:
+  def __init__(self, tile_data, index):
+    self.DEFAULT_BACKGROUND="#161b1f"
+    self.title = tile_data.get('title', '')
+    self.description = tile_data.get('description', '')
+    self.icon = self.get_icon(tile_data.get('icon', None))
+    self.background_color = tile_data.get('background', self.DEFAULT_BACKGROUND)
+    self.foreground_color = self.get_foreground_color(self.background_color)
+    self.url = tile_data.get('url', None)
+    self.index = index
+    self.type = tile_data.get('type', '')
+
+  def get_icon(self, icon):
+    if not icon:
+      return ""
+
+    if icon[:2] == "di":
+      return "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/{}.png".format(icon[3:])
+
+    return Config.USERDATA_URL + f"icons/{icon}"
+
+  def get_foreground_color(self, color):
+    color_rgb = webcolors.hex_to_rgb(color)
+    luminance = 0.2126*(color_rgb.red/255.0)**2.2 + 0.7152*(color_rgb.green/255.0)**2.2 + 0.0722*(color_rgb.blue/255.0)**2.2
+    luma = (0.212 * color_rgb.red + 0.701 * color_rgb.green + 0.087 * color_rgb.blue) / 255
+
+    if luma > 0.5:
+      return "black"
+    else:
+      return "white"
+
+class Tile(CommonTile):
+  def __init__(self, tile_data, index):
+    super(Tile, self).__init__(tile_data, index)
+
+class Folder(CommonTile):
+  def __init__(self, tile_data, index):
+    super(Folder, self).__init__(tile_data, index)
+    self.url = f"/folder/{self.get_url_digest(index)}/"
+    self.tiles = tile_data.get('tiles', None)
+
+  def get_url_digest(self, index):
+    length = 12
+    id = self.title + str(index)
+    digest = hashlib.sha256(id.encode()).digest()
+    encoded = base64.urlsafe_b64encode(digest).decode().rstrip("=")
+    return encoded[:length]
+
 class Config:
+  STATIC_URL = "/static/"
+  USERDATA_URL = "/static/userdata/"
+
   def __init__(self, root_dir, user_data_path):
     self.user_data_path = user_data_path
     self.root_dir = root_dir
+    self.app_config = None
+    self.authelia_url = None
+    self.authelia_timeout = 5
+    self.auth = None
+    self.id_hash = {}
 
   def validate_network(self):
     network_definitions = self.yaml_config.get("network", None)
@@ -41,10 +99,13 @@ class Config:
 
     return None
 
-  def load(self):
+  def load(self, from_var = None):
     try:
-      with open(os.path.join(self.user_data_path, "config.yml"), 'r') as f:
-        self.yaml_config = yaml.safe_load(f)
+      if from_var:
+        self.yaml_config = from_var
+      else:
+        with open(os.path.join(self.user_data_path, "config.yml"), 'r') as f:
+          self.yaml_config = yaml.safe_load(f)
       with open(os.path.join(self.root_dir, "json.schema"), 'r') as f:
         schema = json.load(f)
     except Exception as error:
@@ -70,97 +131,153 @@ class Config:
     if networks_invalid:
       return networks_invalid
 
+    self.app_config = self.yaml_config.get("app_config", None)
+    if self.app_config:
+      self.authelia_url = self.app_config.get("authelia_url", None)
+      self.authelia_timeout = self.app_config.get("authelia_timeout", 5)
+
     return None
 
   def get_background_img(self):
     background = None
 
-    app_config = self.yaml_config.get("app_config", None)
-    if app_config:
-      background = app_config.get("background", None)
+    if self.app_config:
+      background = self.app_config.get("background", None)
 
     if not background:
-      return url_for('static', filename="background.jpg")
+      return Config.STATIC_URL + "background.jpg"
     if re.search("^http(s)?://", background):
       return background
 
-    return url_for('userdata.static', filename=f"backgrounds/{background}")
-
-  def get_icon(self, icon):
-    if not icon:
-      return ""
-
-    if icon[:2] == "di":
-      return "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/{}.png".format(icon[3:])
-
-    return url_for('userdata.static', filename=f"icons/{icon}")
-
-  def get_foreground_color(self, color):
-    color_rgb = webcolors.hex_to_rgb(color)
-    luminance = 0.2126*(color_rgb.red/255.0)**2.2 + 0.7152*(color_rgb.green/255.0)**2.2 + 0.0722*(color_rgb.blue/255.0)**2.2
-    luma = (0.212 * color_rgb.red + 0.701 * color_rgb.green + 0.087 * color_rgb.blue) / 255
-
-    if luma > 0.5:
-      return "black"
-    else:
-      return "white"
+    return Config.USERDATA_URL + f"backgrounds/{background}"
 
   def is_settings_allowed(self, request_headers):
-    app_config = self.yaml_config.get("app_config", None)
-    if not app_config:
+    if not self.app_config:
       return False
 
-    settings = app_config.get("settings", None)
+    settings = self.app_config.get("settings", None)
     if not settings:
       return False
 
     auth = Auth(request_headers.get("remote_user", None), request_headers.get("remote_groups", None))
     return auth.match(settings)
 
-  def get_template_config(self, request_headers):
-    tiles = []
-    DEFAULT_BACKGROUND="#161b1f"
-    dict_appconfig = {}
-    dict_tiles = {}
-
-    if ("tiles" not in self.yaml_config) or ("app_config" not in self.yaml_config):
-        return config
-
-    authelia_url = None
-    app_config = self.yaml_config.get("app_config", None)
-    if app_config:
-      authelia_url = app_config.get("authelia_url", None)
+  def get_app_config(self, request_headers):
+    dict_appconfig ={}
+    config = ({"appconfig" : dict_appconfig})
 
     dict_appconfig["background_img"] = self.get_background_img()
-    auth = Auth(request_headers.get("remote_user", None), request_headers.get("remote_groups", None), request_headers.get("x_forwarded_for", None), self.yaml_config.get("network", None), request_headers.get("authelia_session", None), authelia_url)
     dict_appconfig["show_settings"] = self.is_settings_allowed(request_headers)
-    for tile in self.yaml_config["tiles"]:
-      dict_tiles = {}
-      if ("title" not in tile) or ("url" not in tile):
-          continue
-
-      if auth.match(tile.get("deny", None)) and (auth.match_network(tile["networks"]) if "networks" in tile else True):
-        continue
-
-      skip_authelia = False
-      if "allow" in tile:
-        if not auth.match(tile.get("allow", None)):
-          continue
-        if not auth.match_network(tile.get("networks", None)):
-          continue
-        skip_authelia = True
-
-      dict_tiles["url"] = tile.get("url", None)
-      if (not skip_authelia) and ((not authelia_url) or (not auth.match_url(dict_tiles["url"]))):
-        continue
-      dict_tiles["title"] = tile["title"]
-      dict_tiles["description"] = tile.get("description", "")
-      dict_tiles["icon"] = self.get_icon(tile.get("icon", None))
-      dict_tiles["background_color"] = tile.get("background", DEFAULT_BACKGROUND)
-      dict_tiles["foreground_color"] = self.get_foreground_color(dict_tiles["background_color"])
-
-      tiles.append(dict_tiles)
-
-    config = ({"appconfig" : dict_appconfig, "tiles" : tiles})
 
     return config
+
+  def get_tiles_on_path(self, subpath):
+    if not subpath[0]:
+      return self.yaml_config['tiles']
+
+    return self.id_hash.get(subpath[0], [])
+
+  def is_tile_permitted(self, tile):
+    if not self.auth:
+      return False
+
+    if self.auth.match(tile.get("deny", None)) and (self.auth.match_network(tile["networks"]) if "networks" in tile else True):
+      return False
+
+    skip_authelia = False
+    if "allow" in tile:
+      if not self.auth.match(tile.get("allow", None)):
+        return False
+      if not self.auth.match_network(tile.get("networks", None)):
+        return False
+      skip_authelia = True
+
+    if (not skip_authelia) and ((not self.authelia_url) or (not self.auth.match_url(tile.get("url", None)))):
+      return False
+
+    return True
+
+  def is_folder_permitted(self, tiles):
+    if not self.auth:
+      return False
+
+    for tile in tiles:
+      if tile["type"] == "folder":
+        return self.is_folder_permitted(tile.get('tiles', None))
+
+      if self.is_tile_permitted(tile):
+        return True
+
+    return False
+
+  def get_tile(self, index, tile_data, subpath):
+    if "type" not in tile_data or (tile_data["type"] != "tile" and tile_data["type"] != "folder"):
+      return None
+
+    if (tile_data["type"] == "tile" and (("title" not in tile_data) or ("url" not in tile_data))):
+      return None
+    elif (tile_data["type"] == "folder"  and (("title" not in tile_data) or ("tiles" not in tile_data))):
+      return None
+
+    tile = None
+    if tile_data["type"] == "folder":
+      if not self.is_folder_permitted(tile_data['tiles']):
+        return None
+      tile = Folder(tile_data, index)
+      self.id_hash[tile.get_url_digest(index)] = tile_data["tiles"]
+    else:
+      if not self.is_tile_permitted(tile_data):
+        return None
+      tile = Tile(tile_data, index)
+
+    return tile
+
+  def stream_active_tiles(self, subpath, request_headers, callback):
+    self.auth = Auth(request_headers.get("remote_user", None), request_headers.get("remote_groups", None), request_headers.get("x_forwarded_for", None), self.yaml_config.get("network", None), request_headers.get("authelia_session", None), self.authelia_url, self.authelia_timeout)
+    TIMEOUT = 30 #seconds
+    tiles = self.get_tiles_on_path(subpath.split("/"))
+    start_time = time.time()
+
+    def process(index, tile_data):
+      try:
+        tile = self.get_tile(index, tile_data, subpath)
+        if not tile:
+          return (None, None)
+      except Exception:
+        return (None, None)
+
+      return (index, tile)
+
+    for i, t in enumerate(tiles):
+      index, tile = process(i, t)
+      if not tile:
+        continue
+      if callback:
+        yield callback(index, tile)
+      else:
+        yield (index, tile)
+
+    self.auth = None
+    #Doing requests in parallel with ThreadPoolExecutor seems to be slower on local network with authelia
+    """
+    with ThreadPoolExecutor(max_workers=8) as executor:
+      #futures = [executor.submit(process, i, t) for i, t in enumerate(tiles)]
+      futures = []
+      for i, t in enumerate(tiles):
+        futures.append(executor.submit(process, i, t))
+        time.sleep(0.05)
+
+      try:
+        for future in as_completed(futures, timeout = TIMEOUT):
+          if time.time() - start_time > TIMEOUT:
+            break
+          result = future.result()
+          if result:
+            index, tile = result
+            if callback:
+              yield callback(index, tile)
+            else:
+              yield (index, tile)
+      except TimeoutError:
+        print("Streaming tiles timed out", flush=True)
+    """

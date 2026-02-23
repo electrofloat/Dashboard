@@ -1,19 +1,29 @@
-from flask import url_for
+from dashboard.config import Config, CommonTile
 
-import os
-from dashboard.config import Config
+def assert_folder(config, subpath, request_headers, assert_count, folder_assert_count):
+  def callback(index, tile): return (index, tile)
 
-def url_for(param, filename):
-  return param + '-' + filename
+  folder = None
+  i = -1
+  for i, result in enumerate(config.stream_active_tiles(subpath, request_headers, callback)):
+    index, tile = result
+    if tile.title == "foldertitle":
+      folder = tile.get_url_digest(index)
+
+  assert i == (assert_count - 1)
+  if not folder:
+    return
+  assert len(list(config.stream_active_tiles(folder, request_headers, None))) == folder_assert_count
 
 def test_norequest_headers(mocker):
-  config = Config("", "")
-  config.yaml_config = {
+  config = Config("../dashboard", "")
+  yaml_config = {
 'app_config': {
   'settings':['user:testuser']
 },
 'tiles':
-  [{'title': 'Testtitle',
+  [{'type': 'tile',
+    'title': 'Testtitle',
     'description': 'Testdescription',
     'icon': 'testicon.png',
     'background': '#123456',
@@ -22,20 +32,20 @@ def test_norequest_headers(mocker):
    }
   ]
 }
+  error = config.load(yaml_config)
+  assert not error
   request_headers = {}
-
-  url_for_mock = mocker.patch("dashboard.config.url_for", url_for)
 
   assert not config.is_settings_allowed(request_headers)
 
-  assert len(config.get_template_config(request_headers)["tiles"]) == 0
+  assert len(list(config.stream_active_tiles("/", request_headers, None))) == 0
 
 def test_noappconfig(mocker):
-  config = Config("", "")
-  config.yaml_config = {
-'app_config': None,
+  config = Config("../dashboard", "")
+  yaml_config = {
 'tiles':
-  [{'title': 'Testtitle',
+  [{'type':'tile',
+    'title': 'Testtitle',
     'description': 'Testdescription',
     'icon': 'testicon.png',
     'background': '#123456',
@@ -44,21 +54,22 @@ def test_noappconfig(mocker):
    }
   ]
 }
+  error = config.load(yaml_config)
+  assert not error
+
   request_headers = {}
   request_headers["x_forwarded_for"] = "10.0.0.1"
   request_headers["remote_user"] = "testuser"
   request_headers["remote_groups"] = ""
   request_headers["authelia_session"] = ""
 
-  url_for_mock = mocker.patch("dashboard.config.url_for", url_for)
-
-  assert config.get_background_img() == "static-background.jpg"
+  assert config.get_background_img() == Config.STATIC_URL + "background.jpg"
 
   assert not config.is_settings_allowed(request_headers)
 
 def test_config_common(mocker):
-  config = Config("", "")
-  config.yaml_config = {
+  config = Config("../dashboard", "")
+  yaml_config = {
 'app_config':
   {'authelia_url': 'https://auth.example.org',
    'background': 'background.jpg',
@@ -66,7 +77,8 @@ def test_config_common(mocker):
    'network': {'internal': ['10.0.0.0/24']
   },
 'tiles':
-  [{'title': 'Testtitle',
+  [{'type': 'tile',
+    'title': 'Testtitle',
     'description': 'Testdescription',
     'icon': 'testicon.png',
     'background': '#123456',
@@ -75,19 +87,22 @@ def test_config_common(mocker):
    }
   ]
 }
+  error = config.load(yaml_config)
+  assert not error
+
   request_headers = {}
   request_headers["x_forwarded_for"] = "10.0.0.1"
   request_headers["remote_user"] = "testuser"
   request_headers["remote_groups"] = ""
   request_headers["authelia_session"] = ""
 
-  url_for_mock = mocker.patch("dashboard.config.url_for", url_for)
-  assert config.get_icon("icon.jpg") == "userdata.static-icons/icon.jpg"
-  assert config.get_icon("di-icon") == "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/icon.png"
-  assert config.get_icon("") == ""
-  assert config.get_icon(None) == ""
+  common_tile = CommonTile({}, "")
+  assert common_tile.get_icon("icon.jpg") == Config.USERDATA_URL + "icons/icon.jpg"
+  assert common_tile.get_icon("di-icon") == "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/icon.png"
+  assert common_tile.get_icon("") == ""
+  assert common_tile.get_icon(None) == ""
 
-  assert config.get_background_img() == "userdata.static-backgrounds/background.jpg"
+  assert config.get_background_img() == Config.USERDATA_URL + "backgrounds/background.jpg"
   config.yaml_config["app_config"]["background"] = "https://example.org/background.jpg"
   assert config.get_background_img() == "https://example.org/background.jpg"
 
@@ -95,19 +110,19 @@ def test_config_common(mocker):
   assert config.get_background_img() == "http://example.org/background.jpg"
 
   config.yaml_config["app_config"]["background"] = "htp://example.org/background.jpg"
-  assert config.get_background_img() == "userdata.static-backgrounds/htp://example.org/background.jpg"
+  assert config.get_background_img() == Config.USERDATA_URL + "backgrounds/htp://example.org/background.jpg"
   config.yaml_config["app_config"]["background"] = ""
-  assert config.get_background_img() == "static-background.jpg"
+  assert config.get_background_img() == Config.STATIC_URL + "background.jpg"
   config.yaml_config["app_config"].pop("background", None)
-  assert config.get_background_img() == "static-background.jpg"
+  assert config.get_background_img() == Config.STATIC_URL + "background.jpg"
 
   assert config.is_settings_allowed(request_headers)
   request_headers["remote_user"] = "testuser1"
   assert not config.is_settings_allowed(request_headers)
 
 def test_config_deny(mocker):
-  config = Config("", "")
-  config.yaml_config = {
+  config = Config("../dashboard", "")
+  yaml_config = {
 'app_config':
   {'authelia_url': 'https://auth.example.org',
    'background': 'background.jpg',
@@ -115,35 +130,63 @@ def test_config_deny(mocker):
    'network': {'internal': ['10.0.0.0/24']
   },
 'tiles':
-  [{'title': 'Testtitle',
+  [{'type': 'tile',
+    'title': 'Testtitle',
     'description': 'Testdescription',
     'icon': 'testicon.png',
     'background': '#123456',
     'url': 'https://testurl.com',
     'deny': ['user:testuser']
+   },
+   {'type': 'folder',
+    'title': 'foldertitle',
+    'tiles':
+      [{'type': 'tile',
+       'title': 'testtitle2',
+       'url': 'https://test1url.com',
+       'deny': ['user:testuser']
+       },
+       {'type': 'tile',
+        'title': 'testtitle2',
+        'url': 'https://test2url.com',
+        'deny': ['user:testuser']
+       },
+       {'type': 'tile',
+        'title': 'testtitle3',
+        'url': 'https://test4url.com',
+        'deny': ['user:testuser1']
+       }
+      ]
    }
   ]
 }
+
+  error = config.load(yaml_config)
+  assert not error
+
   request_headers = {}
   request_headers["x_forwarded_for"] = "10.0.0.1"
   request_headers["remote_user"] = "testuser"
   request_headers["remote_groups"] = ""
   request_headers["authelia_session"] = ""
 
-  url_for_mock = mocker.patch("dashboard.config.url_for", url_for)
   match_url_mock = mocker.patch("dashboard.auth.Auth.match_url", return_value = True)
 
-  assert len(config.get_template_config(request_headers)["tiles"]) == 0
+  assert len(list(config.stream_active_tiles("/", request_headers, None))) == 1
 
   request_headers["remote_user"] = "testuser1"
-  assert len(config.get_template_config(request_headers)["tiles"]) == 1
+
+  assert_folder(config, "/", request_headers, 2, 2)
 
   mocker.stop(match_url_mock)
-  assert len(config.get_template_config(request_headers)["tiles"]) == 0
+  assert len(list(config.stream_active_tiles("/", request_headers, None))) == 1
+
+  request_headers["remote_user"] = "testuser2"
+  assert_folder(config, "/", request_headers, 2, 1)
 
 def test_config_deny_from_network(mocker):
-  config = Config("", "")
-  config.yaml_config = {
+  config = Config("../dashboard", "")
+  yaml_config = {
 'app_config':
   {'authelia_url': 'https://auth.example.org',
    'background': 'background.jpg',
@@ -151,41 +194,67 @@ def test_config_deny_from_network(mocker):
    'network': {'internal': ['10.0.0.0/24']
   },
 'tiles':
-  [{'title': 'Testtitle',
+  [{'type': 'tile',
+    'title': 'Testtitle',
     'description': 'Testdescription',
     'icon': 'testicon.png',
     'background': '#123456',
     'url': 'https://testurl.com',
     'deny': ['user:testuser'],
     'networks' : ['internal']
+   },
+   {'type': 'folder',
+    'title': 'foldertitle',
+    'tiles':
+      [{'type': 'tile',
+        'title': 'testtitle2',
+        'url': 'https://test1url.com',
+        'deny': ['user:testuser'],
+        'networks': ['internal']
+       },
+       {'type': 'tile',
+        'title': 'testtitle2',
+        'url': 'https://test2url.com',
+        'deny': ['user:testuser'],
+        'networks': ['internal']
+       },
+       {'type': 'tile',
+        'title': 'testtitle3',
+        'url': 'https://test4url.com',
+        'deny': ['user:testuser1']
+       }
+      ]
    }
+
   ]
 }
+  error = config.load(yaml_config)
+  assert not error
+
   request_headers = {}
   request_headers["x_forwarded_for"] = "10.0.0.1"
   request_headers["remote_user"] = "testuser"
   request_headers["remote_groups"] = ""
   request_headers["authelia_session"] = ""
 
-  url_for_mock = mocker.patch("dashboard.config.url_for", url_for)
   match_url_mock = mocker.patch("dashboard.auth.Auth.match_url", return_value = True)
 
-  assert len(config.get_template_config(request_headers)["tiles"]) == 0
+  assert_folder(config, "/", request_headers, 1, 1)
 
   request_headers["remote_user"] = "testuser1"
-  assert len(config.get_template_config(request_headers)["tiles"]) == 1
+  assert_folder(config, "/", request_headers, 2, 2)
 
   request_headers["remote_user"] = "testuser"
   request_headers["x_forwarded_for"] = "10.0.1.0"
-  assert len(config.get_template_config(request_headers)["tiles"]) == 1
+  assert_folder(config, "/", request_headers, 2, 3)
 
   request_headers["remote_user"] = "testuser1"
   request_headers["x_forwarded_for"] = "10.0.1.0"
-  assert len(config.get_template_config(request_headers)["tiles"]) == 1
+  assert_folder(config, "/", request_headers, 2, 2)
 
 def test_config_allow(mocker):
-  config = Config("", "")
-  config.yaml_config = {
+  config = Config("../dashboard", "")
+  yaml_config = {
 'app_config':
   {'authelia_url': 'https://auth.example.org',
    'background': 'background.jpg',
@@ -193,31 +262,53 @@ def test_config_allow(mocker):
    'network': {'internal': ['10.0.0.0/24']
   },
 'tiles':
-  [{'title': 'Testtitle',
+  [{'type': 'tile',
+    'title': 'Testtitle',
     'description': 'Testdescription',
     'icon': 'testicon.png',
     'background': '#123456',
     'url': 'https://testurl.com',
     'allow': ['user:testuser']
+   },
+   {'type': 'folder',
+    'title': 'foldertitle',
+    'tiles':
+      [{'type': 'tile',
+        'title': 'testtitle2',
+        'url': 'https://test1url.com',
+        'allow': ['user:testuser'],
+       },
+       {'type': 'tile',
+        'title': 'testtitle2',
+        'url': 'https://test2url.com',
+        'allow': ['user:testuser'],
+       },
+       {'type': 'tile',
+        'title': 'testtitle3',
+        'url': 'https://test4url.com',
+        'allow': ['user:testuser1']
+       }
+      ]
    }
   ]
 }
+  error = config.load(yaml_config)
+  assert not error
+
   request_headers = {}
   request_headers["x_forwarded_for"] = "10.0.0.1"
   request_headers["remote_user"] = "testuser"
   request_headers["remote_groups"] = ""
   request_headers["authelia_session"] = ""
 
-  url_for_mock = mocker.patch("dashboard.config.url_for", url_for)
-
-  assert len(config.get_template_config(request_headers)["tiles"]) == 1
+  assert_folder(config, "/", request_headers, 2, 2)
 
   request_headers["remote_user"] = "testuser1"
-  assert len(config.get_template_config(request_headers)["tiles"]) == 0
+  assert_folder(config, "/", request_headers, 1, 1)
 
 def test_config_allow_from_network(mocker):
-  config = Config("", "")
-  config.yaml_config = {
+  config = Config("../dashboard", "")
+  yaml_config = {
 'app_config':
   {'authelia_url': 'https://auth.example.org',
    'background': 'background.jpg',
@@ -225,33 +316,57 @@ def test_config_allow_from_network(mocker):
    'network': {'internal': ['10.0.0.0/24']
   },
 'tiles':
-  [{'title': 'Testtitle',
+  [{'type': 'tile',
+    'title': 'Testtitle',
     'description': 'Testdescription',
     'icon': 'testicon.png',
     'background': '#123456',
     'url': 'https://testurl.com',
     'allow': ['user:testuser'],
     'networks' : ['internal']
+   },
+   {'type': 'folder',
+    'title': 'foldertitle',
+    'tiles':
+      [{'type': 'tile',
+        'title': 'testtitle2',
+        'url': 'https://test1url.com',
+        'allow': ['user:testuser'],
+        'networks': ['internal']
+       },
+       {'type': 'tile',
+        'title': 'testtitle2',
+        'url': 'https://test2url.com',
+        'allow': ['user:testuser'],
+        'networks': ['internal']
+       },
+       {'type': 'tile',
+        'title': 'testtitle3',
+        'url': 'https://test4url.com',
+        'allow': ['user:testuser1']
+       }
+      ]
    }
   ]
 }
+  error = config.load(yaml_config)
+  assert not error
+
   request_headers = {}
   request_headers["x_forwarded_for"] = "10.0.0.1"
   request_headers["remote_user"] = "testuser"
   request_headers["remote_groups"] = ""
   request_headers["authelia_session"] = ""
 
-  url_for_mock = mocker.patch("dashboard.config.url_for", url_for)
-
-  assert len(config.get_template_config(request_headers)["tiles"]) == 1
+  assert_folder(config, "/", request_headers, 2, 2)
 
   request_headers["remote_user"] = "testuser1"
-  assert len(config.get_template_config(request_headers)["tiles"]) == 0
+  assert_folder(config, "/", request_headers, 1, 1)
 
   request_headers["remote_user"] = "testuser"
   request_headers["x_forwarded_for"] = "10.0.1.0"
-  assert len(config.get_template_config(request_headers)["tiles"]) == 0
+  assert_folder(config, "/", request_headers, 0, 0)
 
   request_headers["remote_user"] = "testuser1"
   request_headers["x_forwarded_for"] = "10.0.1.0"
-  assert len(config.get_template_config(request_headers)["tiles"]) == 0
+  assert_folder(config, "/", request_headers, 1, 1)

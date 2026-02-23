@@ -22,6 +22,60 @@
           }
         ]
       }
+    },
+
+    "tile": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "tile" },
+            "title": { "type": "string" },
+            "description": { "type": "string" },
+            "icon": { "type": "string" },
+            "background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{3}){1,2}$"
+            },
+            "url": {
+              "type": "string",
+              "pattern": "^http.*"
+            },
+            "allow": { "$ref": "#/$defs/listoflists" },
+            "deny": { "$ref": "#/$defs/listoflists" },
+            "networks": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string" }
+            }
+          },
+          "required": ["type", "title", "url"],
+          "additionalProperties": false,
+          "allOf": [
+            { "not": { "required": ["allow", "deny"] } }
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "folder" },
+            "title": { "type": "string" },
+            "description": { "type": "string" },
+            "icon": { "type": "string" },
+            "background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{3}){1,2}$"
+            },
+            "tiles": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/tile" }
+            }
+          },
+          "required": ["type", "title", "tiles"],
+          "additionalProperties": false
+        }
+      ]
     }
   },
 
@@ -33,12 +87,12 @@
           "type": "string",
           "pattern": "^http.*"
         },
-        "background": {
-          "type": "string"
+        "authelia_timeout": {
+          "type": "integer",
+          "minimum": 0
         },
-        "settings": {
-          "$ref": "#/$defs/listoflists"
-        }
+        "background": { "type": "string" },
+        "settings": { "$ref": "#/$defs/listoflists" }
       },
       "additionalProperties": false
     },
@@ -48,47 +102,14 @@
       "additionalProperties": {
         "type": "array",
         "minItems": 1,
-        "items": {
-          "type": "string"
-        }
+        "items": { "type": "string" }
       }
     },
 
     "tiles": {
       "type": "array",
       "minItems": 1,
-      "items": {
-        "type": "object",
-        "properties": {
-          "title": { "type": "string" },
-          "description": { "type": "string" },
-          "icon": { "type": "string" },
-          "background": {
-            "type": "string",
-            "pattern": "^#(?:[0-9a-fA-F]{3}){1,2}$"
-          },
-          "url": {
-            "type": "string",
-            "pattern": "^http.*"
-          },
-          "allow": { "$ref": "#/$defs/listoflists" },
-          "deny": { "$ref": "#/$defs/listoflists" },
-          "networks": {
-            "type": "array",
-            "minItems": 1,
-            "items": { "type": "string" }
-          }
-        },
-        "required": ["title", "url"],
-        "additionalProperties": false,
-        "allOf": [
-          {
-            "not": {
-              "required": ["allow", "deny"]
-            }
-          }
-        ]
-      }
+      "items": { "$ref": "#/$defs/tile" }
     }
   },
 

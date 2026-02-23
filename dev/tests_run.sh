@@ -6,5 +6,6 @@ if [ ! -f venv/pyvenv.cfg ]; then
 fi
 
 source venv/bin/activate
+export FLASK_DEBUG=1
 
 pytest -p no:cacheprovider ../

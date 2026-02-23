@@ -1,5 +1,44 @@
 {% extends "base.html" %}
 {% block content %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const eventSource = new EventSource('/stream-tiles/{{ subpath }}');
+  const loader = document.getElementById("loader");
+  loader.style.display = '';
+
+eventSource.onmessage = function(e) {
+    const data = JSON.parse(e.data);
+
+    if (data.done) {
+        eventSource.close();
+        loader.style.display = 'none';
+        return;
+    }
+
+    const temp = document.createElement('template');
+    temp.innerHTML = data.html;
+    const newTile = temp.content.firstElementChild;
+    newTile.dataset.index = data.id;
+    newTile.classList.add('tile-wrapper')
+
+    const container = document.getElementById('tile-container');
+    const existingTiles = Array.from(container.children);
+    const nextTile = existingTiles.find(tile =>
+        parseInt(tile.dataset.index) > data.id
+    );
+
+    if (nextTile) {
+        container.insertBefore(newTile, nextTile);
+    } else {
+        container.appendChild(newTile);
+    }
+
+  setTimeout(() => {
+        newTile.classList.add('wrapper-visible');
+    }, 20);
+};
+});
+</script>
 <section class="hero is-link is-fullheight">
 <div class="hero-body" style="background-image: url({{ config.appconfig.background_img }}) ;
         background-position: center center;
@@ -14,31 +53,11 @@
     </span>
   </a>
 {% endif %}
+  <span class="button" style="position: absolute; top: 00px; left: 0px; display: none;" id="loader">
+    <span class="loader icon is-small"></span>
+  </span>
   <div class="" style="width: 100%; display: flex; justify-content: center;">
-    <div class="columns is-multiline is-centered is-gapless">
-{% if config.tiles is not none %}
-{% for tile in config.tiles %}
-      <div class="column is-narrow">
-        <section class="item-container tag-0-dash">
-            <div class="item" style="background-color: {{tile.background_color}}">
-                <div class="app-icon-container">
-                  <img class="app-icon" src="{{ tile.icon }}">
-                </div>
-                <div class="details">
-                    <div class="titl {{tile.foreground_color}}">{{tile.title}}</div>
-                    <div class="desc {{tile.foreground_color}}">{{tile.description}}</div>
-                </div>
-                <a rel="noopener noreferrer" class="link {{tile.foreground_color}}" target="_blank" href="{{tile.url}}">
-                  <svg class="svg-inline--fa fa-arrow-alt-to-right fa-w-14" aria-hidden="true" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512">
-                    <path fill="currentColor" d="M448 88v336c0 13.3-10.7 24-24 24h-24c-13.3 0-24-10.7-24-24V88c0-13.3 10.7-24 24-24h24c13.3 0 24 10.7 24 24zM24 320h136v87.7c0 17.8 21.5 26.7 34.1 14.1l152.2-152.2c7.5-7.5 7.5-19.8 0-27.3L194.1 90.1c-12.6-12.6-34.1-3.7-34.1 14.1V192H24c-13.3 0-24 10.7-24 24v80c0 13.3 10.7 24 24 24z">
-                    </path>
-                  </svg>
-                </a>
-            </div>
-        </section>
-      </div>
- {% endfor %}
- {% endif %}
+    <div class="columns is-multiline is-centered is-gapless" id="tile-container">
     </div>
   </div>
 </div>

@@ -12,6 +12,10 @@ app_config:
   authelia_url: https://auth.example.org
 
   # Optional
+  # Timeout to wait for authelia's answer (in seconds), default is 5.
+  #authelia_timeout: 5
+
+  # Optional
   # Can be either:
   #   - a filename: it will be loaded from user-data/backgrounds/filename
   #   - a url
@@ -19,7 +23,7 @@ app_config:
 
   # Optional
   # The subject(s) that can access the settings page. Uses Authelia's user:, group: subject form (https://www.authelia.com/configuration/security/access-control/#subject)
-  # For now this is not really a settings page but a template for a tile the check how it would look like on the main page with the given texts, icon and color
+  # For now this is not really a settings page but a template for a tile to check how it would look like on the main page with the given texts, icon and color
   settings:
     - 'user:testuser'
 # Optional
@@ -29,11 +33,12 @@ network:
     - '10.0.0.0/24'
 
 # Mandatory
-# At least 1 tile is required
+# At least 1 type: tile or 1 type: folder is required
 tiles:
+  - type: tile
     # Mandatory
     # The title of the tile
-  - title: Zigbee2MQTT
+    title: Zigbee2MQTT
     # Optional
     # Description appears on the second line of the tile
     description: Zigbee configurator
@@ -58,9 +63,10 @@ tiles:
     # If given, it will only allow/deny access from the given network. Uses Authelia's networks form (https://www.authelia.com/configuration/security/access-control/#networks)
     networks:
       - internal
-  - title: Grafana
+  - type: tile
+    title: Grafana
     description: Interactive visualization platform
-    icon: di-grafana
+    icon: https://icon
     url: https://grafana.example.org
     deny:
       - "user:testuser1"
@@ -68,7 +74,26 @@ tiles:
     networks:
       - internal
       - '172.16.0.0/24'
-  - title: Healthchecks
+  - type: folder
+    title: HomeAssistant
+    icon: di-home-assistant
+    tiles:
+    - type: tile
+      title: HomeAssistant
+      description: Home automation platform
+      icon: di-home-assistant
+      background: "#05a"
+      url: https://homeassistant.example.org
+      allow: ["user:testuser"]
+    - type: tile
+      title: Zwavejs2UI
+      description: Z-Wave to MQTT
+      icon: di-zwavejs2mqtt
+      background: "#08f"
+      url: https://zwavejsui.example.org
+      allow: ["user:testuser2"]
+  - type: tile
+    title: Healthchecks
     description: Instant alerts for silently failing jobs
     icon: di-healthchecks
     background: "#fafbfc"
@@ -76,47 +101,41 @@ tiles:
     allow:
       - "user:testuser"
       - ["group:admins", "group:realadmins"]
-  - title: HomeAssistant
-    description: Home automation platform
-    icon: di-home-assistant
-    background: "#05a"
-    url: https://homeassistant.example.org
-    allow: ["user:testuser"]
-  - title: Immich
+  - type: tile
+    title: Immich
     description: Photo and video backup/storage
     icon: di-immich
     url: https://immich.example.org
     allow: ["user:testuser"]
-  - title: Linkding
+  - type: tile
+    title: Linkding
     description: Bookmarks storage
     icon: di-linkding
     background: "#192865"
     url: https://linkding.example.org
     allow: ["user:testuser"]
-  - title: PaperlessNgx
+  - type: tile
+    title: PaperlessNgx
     description: Document management system
     icon: di-paperless-ngx
     url: https://paperlessngx.example.org
     allow: ["user:testuser"]
-  - title: Plex
+  - type: tile
+    title: Plex
     description: Personal media management
     icon: di-plex
     background: "#520"
     url: https://plex.example.org
     allow: ["user:testuser"]
-  - title: Portainer
+  - type: tile
+    title: Portainer
     description: Docker container management system
     icon: di-portainer
     url: https://portainer.example.org
     allow: ["user:testuser"]
-  - title: Wiki.js
+  - type: tile
+    title: Wiki.js
     icon: di-wikijs
     background: "#fafbfc"
     url: https://wikijs.example.org
-    allow: ["user:testuser"]
-  - title: Zwavejs2UI
-    description: Z-Wave to MQTT
-    icon: di-zwavejs2mqtt
-    background: "#08f"
-    url: https://zwavejsui.example.org
     allow: ["user:testuser"]

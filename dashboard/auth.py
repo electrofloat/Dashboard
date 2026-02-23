@@ -3,13 +3,15 @@ import requests
 import os
 
 class Auth:
-  def __init__(self, user, groups, ip = None, network_definitions = None, session_cookie = None, authelia_url = None):
+  def __init__(self, user, groups, ip = None, network_definitions = None, session_cookie = None, authelia_url = None, authelia_timeout = 5):
     self.user = user
     self.groups = groups
     self.ip = ip
     self.network_definitions = network_definitions
     self.session_cookie = session_cookie
     self.authelia_url = authelia_url
+    self.authelia_timeout = authelia_timeout
+    self.session = requests.Session()
 
   def match_url(self, url):
     if "FLASK_DEBUG" in os.environ:
@@ -21,7 +23,7 @@ class Auth:
     if (not self.session_cookie) or (not self.ip) or (not self.authelia_url):
       return False
 
-    status = requests.head(url=f"{self.authelia_url}/api/authz/auth-request", cookies={"authelia_session" : self.session_cookie}, headers={"X-Original-Method":"HEAD", "X-Original-URL" : url, "X-Forwarded-For" : self.ip})
+    status = self.session.head(url=f"{self.authelia_url}/api/authz/auth-request", cookies={"authelia_session" : self.session_cookie}, headers={"X-Original-Method":"HEAD", "X-Original-URL" : url, "X-Forwarded-For" : self.ip}, timeout=self.authelia_timeout)
 
     if status.status_code != 200:
       return False
@@ -91,6 +93,8 @@ class Auth:
     return False
 
   def is_group_authorized(self, group):
+    if not self.groups:
+      return False
     for remote_group in self.groups.split(','):
       if group == remote_group.strip():
         return True
