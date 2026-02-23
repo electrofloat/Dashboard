@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+
+  "$defs": {
+    "listoflists": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "anyOf": [
+          {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "pattern": "^(user:|group:).*"
+            }
+          },
+          {
+            "type": "string",
+            "pattern": "^(user:|group:).*"
+          }
+        ]
+      }
+    }
+  },
+
+  "properties": {
+    "app_config": {
+      "type": "object",
+      "properties": {
+        "authelia_url": {
+          "type": "string",
+          "pattern": "^http.*"
+        },
+        "background": {
+          "type": "string"
+        },
+        "settings": {
+          "$ref": "#/$defs/listoflists"
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "network": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+
+    "tiles": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "description": { "type": "string" },
+          "icon": { "type": "string" },
+          "background": {
+            "type": "string",
+            "pattern": "^#(?:[0-9a-fA-F]{3}){1,2}$"
+          },
+          "url": {
+            "type": "string",
+            "pattern": "^http.*"
+          },
+          "allow": { "$ref": "#/$defs/listoflists" },
+          "deny": { "$ref": "#/$defs/listoflists" },
+          "networks": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string" }
+          }
+        },
+        "required": ["title", "url"],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "not": {
+              "required": ["allow", "deny"]
+            }
+          }
+        ]
+      }
+    }
+  },
+
+  "required": ["tiles"],
+  "additionalProperties": false
+}

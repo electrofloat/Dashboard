@@ -58,5 +58,5 @@ with app.app_context():
     config = Config(app.root_path, user_data_path)
     error = config.load()
     if error:
-      global_error = f"Error opening config.yml; error={error}"
+      global_error = f"Error opening config.yml; error='{error}'"
       print(global_error)

@@ -3,7 +3,7 @@ FROM python:3.12-alpine
 RUN mkdir -p /app/dashboard/static
 RUN mkdir -p /app/dashboard/templates
 
-COPY dashboard/auth.py dashboard/config.py dashboard/main.py dashboard/config.schema dashboard/__init__.py dashboard/listoflists.schema requirements.txt LICENSE /app/dashboard/
+COPY dashboard/auth.py dashboard/config.py dashboard/main.py dashboard/json.schema dashboard/__init__.py requirements.txt LICENSE /app/dashboard/
 
 COPY dashboard/static/app.css dashboard/static/background.jpg dashboard/static/bulma.css dashboard/static/favicon.png /app/dashboard/static
 

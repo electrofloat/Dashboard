@@ -3,7 +3,7 @@ Flask
 requests
 pyyaml
 webcolors
-cerberus
+jsonschema
 gunicorn
 pytest
 pytest-mock

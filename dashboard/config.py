@@ -1,11 +1,12 @@
 from flask import url_for
 import yaml
 import os
-from cerberus import Validator
+from jsonschema import Draft202012Validator
 import string
 import ipaddress
 import re
 import webcolors
+import json
 
 from dashboard.auth import Auth
 
@@ -44,23 +45,26 @@ class Config:
     try:
       with open(os.path.join(self.user_data_path, "config.yml"), 'r') as f:
         self.yaml_config = yaml.safe_load(f)
-      with open(os.path.join(self.root_dir, "listoflists.schema"), 'r') as f:
-        listoflists_schema = f.read()
-
-      subst = {
-        'listoflists' : listoflists_schema
-      }
-
-      with open(os.path.join(self.root_dir, "config.schema"), 'r') as f:
-        tmp_src = string.Template(f.read())
-        result = tmp_src.substitute(subst)
+      with open(os.path.join(self.root_dir, "json.schema"), 'r') as f:
+        schema = json.load(f)
     except Exception as error:
       return error
 
-    schema = yaml.safe_load(result)
-    v = Validator(schema)
-    if not v.validate(self.yaml_config, schema):
-      return yaml.dump(v.errors, default_flow_style = False)
+    validator = Draft202012Validator(schema)
+    validator_errors = sorted(validator.iter_errors(self.yaml_config), key=lambda e: list(e.path))
+    if validator_errors:
+        error = "\n"
+        for validator_error in validator_errors:
+            path = ".".join(str(p) for p in validator_error.path) or "<root>"
+            error += f"* Path: {path}\n"
+            error += f"  Message: {validator_error.message}\n"
+
+            if validator_error.context:
+                error += "  Sub-errors:\n"
+                for sub in validator_error.context:
+                    error += f"    - {sub.message}\n"
+
+        return error
 
     networks_invalid = self.validate_network()
     if networks_invalid:
