@@ -1,4 +1,4 @@
-# Dashboard
+# Dashboard  - [![Badge Kofi]][Kofi]
 
 ## Summary
 
@@ -39,3 +39,6 @@ Persistent files reside under `user-data/`. The file structure is:
 
 Edit the contents of `user-data/config.yml`. An example can be found [here](./dev/config.yml).
 After a config change you have to restart the application.
+
+[Kofi]: https://ko-fi.com/dexterandapps
+[Badge Kofi]: https://img.shields.io/badge/KO--FI-SUPPORT-orange?style=for-the-badge&logo=ko-fi&logoSize=auto
