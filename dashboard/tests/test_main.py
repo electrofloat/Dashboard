@@ -1,5 +1,8 @@
+import hashlib
 import html
 import json
+import os
+import re
 
 import pytest
 
@@ -247,3 +250,17 @@ def test_settings_page_config_snippet(tmp_path):
     assert 'id="url_input"' in page
     assert 'id="yaml"' in page
     assert 'id="copy"' in page
+
+
+def test_static_urls_are_versioned(tmp_path):
+    client = make_client(tmp_path)
+    page = client.get("/", headers=USER, environ_base=PROXY).get_data(as_text=True)
+    url = re.search(r'src="(/static/index\.js\?v=[0-9a-f]+)"', page).group(1)
+
+    with open(os.path.join(client.application.static_folder, "index.js"), "rb") as f:
+        assert url.endswith(hashlib.sha256(f.read()).hexdigest()[:12])
+
+    cache_control = client.get(url).headers["Cache-Control"]
+    assert "max-age=31536000" in cache_control and "immutable" in cache_control
+    assert "no-cache" not in cache_control
+    assert "max-age" not in client.get("/static/index.js").headers["Cache-Control"]
