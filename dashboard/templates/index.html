@@ -5,7 +5,7 @@
 {% endblock %}
 {% block content %}
 <section class="hero is-link is-fullheight">
-<div class="hero-body" style="background-image: url({{ config.appconfig.background_img }}) ;
+<div class="hero-body" style="background-image: url({{ config.appconfig.background_img|css_string }}) ;
         background-position: center center;
         background-repeat:  no-repeat;
         background-attachment: fixed;

@@ -1,3 +1,4 @@
+import html
 import json
 
 import pytest
@@ -165,3 +166,12 @@ def test_no_icon_cdn(tmp_path):
     assert "bootstrap-icons" not in response.get_data(as_text=True)
     assert "<svg" in response.get_data(as_text=True)
     assert "cdn.jsdelivr.net" not in response.headers["Content-Security-Policy"]
+
+
+def test_background_url_escaped(tmp_path):
+    client = make_client(tmp_path, CONFIG.replace("app_config:", 'app_config:\n  background: "x\');background:red;/*"'))
+    page = client.get("/", headers=USER, environ_base=PROXY).get_data(as_text=True)
+
+    start = page.index('<div class="hero-body" style="') + len('<div class="hero-body" style="')
+    style = html.unescape(page[start : page.index('"', start)])
+    assert 'url("/static/userdata/backgrounds/x\\27 \\29 ;background:red;/*")' in style

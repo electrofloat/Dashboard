@@ -20,6 +20,12 @@ CONTENT_SECURITY_POLICY = "; ".join(
 )
 
 
+def css_string(value):
+    safe = "/:.-_?=&%#~+,;@!$*"
+    escaped = "".join(c if c.isalnum() or c in safe else f"\\{ord(c):x} " for c in str(value))
+    return f'"{escaped}"'
+
+
 def set_security_headers(response):
     response.headers.setdefault("Content-Security-Policy", CONTENT_SECURITY_POLICY)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
@@ -57,5 +63,6 @@ def create_app(user_data_path=None):
     app.register_blueprint(blueprint)
 
     app.after_request(set_security_headers)
+    app.jinja_env.filters["css_string"] = css_string
 
     return app
