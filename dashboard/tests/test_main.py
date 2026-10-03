@@ -112,7 +112,7 @@ def test_untrusted_peer_headers_ignored(tmp_path):
 
     events = read_events(client.get("/stream-tiles/", headers=USER, environ_base={"REMOTE_ADDR": "10.0.0.5"}))
     assert events == [{"done": True}]
-    assert client.get("/color", headers=USER, environ_base={"REMOTE_ADDR": "10.0.0.5"}).status_code == 401
+    assert client.get("/color", headers=USER, environ_base={"REMOTE_ADDR": "10.0.0.5"}).status_code == 403
     assert client.get("/color", headers=USER, environ_base=PROXY).status_code == 200
 
 

@@ -104,7 +104,7 @@ def route_color():
     request_headers = get_request_headers(config)
 
     if not config.is_settings_allowed(request_headers):
-        abort(401, description="")
+        abort(403)
 
     conf = config.get_app_config(request_headers)
     return render_template("color.html", config=conf)
