@@ -30,7 +30,7 @@ def check_global_error():
 
 def get_request_headers(config):
     request_headers = {}
-    request_headers["authelia_session"] = request.cookies.get("authelia_session")
+    request_headers["authelia_session"] = request.cookies.get(config.authelia_cookie_name)
 
     remote_addr = request.remote_addr
     if config.is_peer_trusted(remote_addr):

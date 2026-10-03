@@ -17,6 +17,14 @@ app_config:
   #authelia_timeout: 5
 
   # Optional
+  # Name of Authelia's session cookie, default is authelia_session.
+  #authelia_cookie_name: authelia_session
+
+  # Optional
+  # Seconds to remember Authelia's answer for a session and url, default is 30. 0 disables the cache.
+  #authelia_cache_ttl: 30
+
+  # Optional
   # The addresses of your reverse proxies (CIDR form). If set, the Remote-User, Remote-Groups and X-Forwarded-For
   # headers are only accepted from these addresses, requests from anywhere else are treated as anonymous.
   # If not set, these headers are accepted from anyone, so the dashboard must only be reachable through the proxy.

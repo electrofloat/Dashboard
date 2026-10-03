@@ -1,7 +1,9 @@
 import base64
+import concurrent.futures
 import hashlib
 import ipaddress
 import json
+import logging
 import os
 import re
 
@@ -9,9 +11,17 @@ import webcolors
 import yaml
 from jsonschema import Draft202012Validator
 
-from dashboard.auth import Auth
+from dashboard.auth import DEFAULT_COOKIE_NAME, Auth, TTLCache
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Upper bound for the parallel tile authorization checks of a single request
+MAX_WORKERS = 8
+# Seconds after which a tile stream gives up waiting for the remaining tiles
+STREAM_TIMEOUT = 30
+DEFAULT_CACHE_TTL = 30
+
+logger = logging.getLogger(__name__)
 
 
 def folder_digest(title, index, parent=""):
@@ -77,6 +87,8 @@ class Config:
         self.app_config = None
         self.authelia_url = None
         self.authelia_timeout = 5
+        self.authelia_cookie_name = DEFAULT_COOKIE_NAME
+        self.authz_cache = TTLCache(DEFAULT_CACHE_TTL)
         self.trusted_proxies = None
         self.id_hash = {}
         self.folder_digests = {}
@@ -166,6 +178,8 @@ class Config:
         if self.app_config:
             self.authelia_url = self.app_config.get("authelia_url", None)
             self.authelia_timeout = self.app_config.get("authelia_timeout", 5)
+            self.authelia_cookie_name = self.app_config.get("authelia_cookie_name", DEFAULT_COOKIE_NAME)
+            self.authz_cache = TTLCache(self.app_config.get("authelia_cache_ttl", DEFAULT_CACHE_TTL))
             trusted_proxies = self.app_config.get("trusted_proxies", None)
             if trusted_proxies:
                 self.trusted_proxies = [ipaddress.ip_network(network) for network in trusted_proxies]
@@ -290,6 +304,8 @@ class Config:
             request_headers.get("authelia_session", None),
             self.authelia_url,
             self.authelia_timeout,
+            self.authelia_cookie_name,
+            self.authz_cache,
         )
 
     def stream_active_tiles(self, folder_id, request_headers, callback=None):
@@ -299,14 +315,30 @@ class Config:
 
         auth = self.create_auth(request_headers)
 
-        for index, tile_data in enumerate(tiles):
+        def process(index, tile_data):
             try:
-                tile = self.get_tile(auth, index, tile_data)
-            except Exception:
-                continue
-            if not tile:
-                continue
-            if callback:
-                yield callback(index, tile)
-            else:
-                yield (index, tile)
+                return self.get_tile(auth, index, tile_data)
+            except Exception as error:
+                logger.warning(
+                    "Authorization check failed for tile '%s': %s",
+                    tile_data.get("title"),
+                    error,
+                )
+                return None
+
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=min(MAX_WORKERS, len(tiles)))
+        try:
+            futures = {executor.submit(process, i, t): i for i, t in enumerate(tiles)}
+            for future in concurrent.futures.as_completed(futures, timeout=STREAM_TIMEOUT):
+                tile = future.result()
+                if not tile:
+                    continue
+                index = futures[future]
+                if callback:
+                    yield callback(index, tile)
+                else:
+                    yield (index, tile)
+        except concurrent.futures.TimeoutError:
+            logger.warning("Streaming tiles timed out")
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)

@@ -19,4 +19,5 @@ EXPOSE 5000
 
 WORKDIR /app
 
-CMD ["gunicorn", "dashboard:create_app()", "-b", "0.0.0.0:5000", "-w", "1", "--no-control-socket"]
+# gthread lets slow Authelia checks of one page load run without blocking every other request
+CMD ["gunicorn", "dashboard:create_app()", "-b", "0.0.0.0:5000", "-w", "1", "-k", "gthread", "--threads", "8", "--no-control-socket"]

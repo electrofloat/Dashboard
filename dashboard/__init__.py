@@ -30,6 +30,7 @@ def set_security_headers(response):
 
 def create_app(user_data_path=None):
     app = Flask(__name__)
+    app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 3600
 
     if not user_data_path:
         user_data_path = os.environ.get("DASHBOARD_USER_DATA") or os.path.join(app.root_path, "..", "user-data")

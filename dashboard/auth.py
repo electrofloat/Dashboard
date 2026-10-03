@@ -1,10 +1,55 @@
+import hashlib
+import http.cookiejar
 import ipaddress
 import os
+import threading
+import time
 
 import requests
 
+DEFAULT_COOKIE_NAME = "authelia_session"
+
 def dev_fake_auth():
     return os.environ.get("DASHBOARD_DEV_FAKE_AUTH") == "1"
+
+def _create_session():
+    session = requests.Session()
+    session.cookies.set_policy(http.cookiejar.DefaultCookiePolicy(allowed_domains=[]))
+    return session
+
+
+_session = _create_session()
+
+
+class TTLCache:
+    def __init__(self, ttl, maxsize=4096):
+        self.ttl = ttl
+        self.maxsize = maxsize
+        self._data = {}
+        self._lock = threading.Lock()
+
+    def get(self, key):
+        with self._lock:
+            entry = self._data.get(key)
+            if entry is None:
+                return None
+            value, expires = entry
+            if expires < time.monotonic():
+                del self._data[key]
+                return None
+            return value
+
+    def set(self, key, value):
+        if self.ttl <= 0:
+            return
+        with self._lock:
+            if len(self._data) >= self.maxsize:
+                now = time.monotonic()
+                self._data = {k: v for k, v in self._data.items() if v[1] >= now}
+                if len(self._data) >= self.maxsize:
+                    self._data.clear()
+            self._data[key] = (value, time.monotonic() + self.ttl)
+
 
 class Auth:
     def __init__(
@@ -16,6 +61,8 @@ class Auth:
         session_cookie=None,
         authelia_url=None,
         authelia_timeout=5,
+        cookie_name=DEFAULT_COOKIE_NAME,
+        cache=None,
     ):
         self.user = user
         self.groups = groups
@@ -24,7 +71,8 @@ class Auth:
         self.session_cookie = session_cookie
         self.authelia_url = authelia_url
         self.authelia_timeout = authelia_timeout
-        self.session = requests.Session()
+        self.cookie_name = cookie_name
+        self.cache = cache
 
     def match_url(self, url):
         if dev_fake_auth():
@@ -33,23 +81,35 @@ class Auth:
         if (not self.session_cookie) or (not self.ip) or (not self.authelia_url):
             return False
 
-        status = self.session.head(
+        cache_key = None
+        if self.cache is not None:
+            cookie_digest = hashlib.sha256(self.session_cookie.encode()).hexdigest()
+            cache_key = (cookie_digest, self.ip, url)
+            cached = self.cache.get(cache_key)
+            if cached is not None:
+                return cached
+
+        response = _session.head(
             url=f"{self.authelia_url}/api/authz/auth-request",
-            cookies={"authelia_session": self.session_cookie},
-            headers={"X-Original-Method": "HEAD", "X-Original-URL": url, "X-Forwarded-For": self.ip},
+            headers={
+                "Cookie": f"{self.cookie_name}={self.session_cookie}",
+                "X-Original-Method": "HEAD",
+                "X-Original-URL": url,
+                "X-Forwarded-For": self.ip,
+            },
             timeout=self.authelia_timeout,
         )
+        allowed = response.status_code == 200
 
-        if status.status_code != 200:
-            return False
+        if cache_key is not None:
+            self.cache.set(cache_key, allowed)
 
-        return True
+        return allowed
 
     def match_network(self, networks):
         if not networks:
             return True
 
-        ip = None
         try:
             ip = ipaddress.ip_address(self.ip)
         except ValueError:
@@ -58,7 +118,6 @@ class Auth:
         for network in networks:
             if network in self.network_definitions:
                 for network_definition in self.network_definitions[network]:
-                    ip_net = None
                     try:
                         ip_net = ipaddress.ip_network(network_definition)
                     except ValueError:
@@ -66,7 +125,6 @@ class Auth:
                     if ip in ip_net:
                         return True
             else:
-                ip_net = None
                 try:
                     ip_net = ipaddress.ip_network(network)
                 except ValueError:
@@ -82,36 +140,25 @@ class Auth:
 
         for outer_list_item in authorization_list:
             if isinstance(outer_list_item, list):
-                authorized = True
-                for user_group in outer_list_item:
-                    authorized = authorized and self.check_authorization(user_group)
-                if authorized:
+                if all(self.check_authorization(user_group) for user_group in outer_list_item):
                     return True
-            else:
-                if self.check_authorization(outer_list_item):
-                    return True
+            elif self.check_authorization(outer_list_item):
+                return True
 
         return False
 
     def check_authorization(self, user_or_group):
-        if user_or_group[:4] == "user":
+        if user_or_group.startswith("user:"):
             return self.is_user_authorized(user_or_group[5:])
-        if user_or_group[:5] == "group":
+        if user_or_group.startswith("group:"):
             return self.is_group_authorized(user_or_group[6:])
 
         return False
 
     def is_user_authorized(self, user):
-        if user == self.user:
-            return True
-
-        return False
+        return user == self.user
 
     def is_group_authorized(self, group):
         if not self.groups:
             return False
-        for remote_group in self.groups.split(","):
-            if group == remote_group.strip():
-                return True
-
-        return False
+        return any(group == remote_group.strip() for remote_group in self.groups.split(","))
