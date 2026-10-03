@@ -1,9 +1,6 @@
-pip >= 22.1
 Flask
 requests
 pyyaml
 webcolors
 jsonschema
 gunicorn
-pytest
-pytest-mock

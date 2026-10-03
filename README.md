@@ -26,6 +26,8 @@ services:
       disable: true
 ```
 
+The container runs as user id 1000, so the files in `user-data/` must be readable by that user.
+
 Persistent files reside under `user-data/`. The file structure is:
 
 | Path                       | Type | Description                                                                                                               |

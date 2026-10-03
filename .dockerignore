@@ -1,0 +1,7 @@
+.git
+.github
+dev
+dashboard/tests
+**/__pycache__
+**/*.pyc
+screenshot.png
