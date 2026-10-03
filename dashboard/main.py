@@ -64,7 +64,12 @@ def index():
     config = get_config()
     conf = config.get_app_config(get_request_headers(config))
 
-    return render_template("index.html", config=conf, folder_id="")
+    return render_template(
+        "index.html",
+        config=conf,
+        folder_id="",
+        has_subfolders=config.has_subfolders(""),
+    )
 
 
 @main.route("/folder", defaults={"subpath": ""})
@@ -89,6 +94,7 @@ def route_folder(subpath):
         folder_id=folder_id,
         back_url=back_url,
         page_title=config.folder_titles.get(folder_id),
+        has_subfolders=config.has_subfolders(folder_id),
     )
 
 
@@ -100,11 +106,17 @@ def route_stream_tiles(subpath):
         abort(404)
 
     request_headers = get_request_headers(config)
+    recursive = request.args.get("recursive") == "1"
 
     def generate():
-        for index, tile in config.stream_active_tiles(subpath, request_headers):
-            html = render_template("tile_fragment.html", tile=tile)
-            yield f"data: {json.dumps({'id': index, 'html': html})}\n\n"
+        if recursive:
+            for order, path, tile in config.stream_nested_tiles(subpath, request_headers):
+                html = render_template("tile_fragment.html", tile=tile, path=" / ".join(path))
+                yield f"data: {json.dumps({'id': order, 'html': html})}\n\n"
+        else:
+            for index, tile in config.stream_active_tiles(subpath, request_headers):
+                html = render_template("tile_fragment.html", tile=tile)
+                yield f"data: {json.dumps({'id': index, 'html': html})}\n\n"
 
         yield f"data: {json.dumps({'done': True})}\n\n"
 

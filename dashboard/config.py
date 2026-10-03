@@ -281,6 +281,9 @@ class Config:
 
         return self.id_hash.get(folder_id, None)
 
+    def has_subfolders(self, folder_id):
+        return any(tile_data["type"] == "folder" for tile_data in self.get_tiles(folder_id) or [])
+
     def is_tile_permitted(self, auth, tile):
         if auth.match(tile.get("deny", None)) and (
             auth.match_network(tile["networks"]) if "networks" in tile else True
@@ -345,6 +348,39 @@ class Config:
         if not tiles:
             return
 
+        entries = [(index, index, tile_data) for index, tile_data in enumerate(tiles)]
+        for index, tile in self.check_tiles(entries, request_headers):
+            if callback:
+                yield callback(index, tile)
+            else:
+                yield (index, tile)
+
+    def stream_nested_tiles(self, folder_id, request_headers):
+        tiles = self.get_tiles(folder_id)
+        if not tiles:
+            return
+
+        paths = []
+        entries = []
+
+        def walk(tiles, path):
+            for tile_data in tiles:
+                if tile_data["type"] != "folder":
+                    continue
+                sub_path = path + [tile_data["title"]]
+                for index, child in enumerate(tile_data["tiles"]):
+                    entries.append((len(entries), index, child))
+                    paths.append(sub_path)
+                walk(tile_data["tiles"], sub_path)
+
+        walk(tiles, [])
+        for order, tile in self.check_tiles(entries, request_headers):
+            yield (order, paths[order], tile)
+
+    def check_tiles(self, entries, request_headers):
+        if not entries:
+            return
+
         auth = self.create_auth(request_headers)
 
         def process(index, tile_data):
@@ -360,18 +396,13 @@ class Config:
                 )
                 return None
 
-        executor = concurrent.futures.ThreadPoolExecutor(max_workers=min(MAX_WORKERS, len(tiles)))
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=min(MAX_WORKERS, len(entries)))
         try:
-            futures = {executor.submit(process, i, t): i for i, t in enumerate(tiles)}
+            futures = {executor.submit(process, index, tile_data): key for key, index, tile_data in entries}
             for future in concurrent.futures.as_completed(futures, timeout=STREAM_TIMEOUT):
                 tile = future.result()
-                if not tile:
-                    continue
-                index = futures[future]
-                if callback:
-                    yield callback(index, tile)
-                else:
-                    yield (index, tile)
+                if tile:
+                    yield (futures[future], tile)
         except concurrent.futures.TimeoutError:
             logger.warning("Streaming tiles timed out")
         finally:

@@ -31,10 +31,25 @@
     </span>
   </div>
   <div class="search-box">
-    <input class="input" type="search" id="search" placeholder="Search" aria-label="Search tiles" autocomplete="off">
+    <div class="field has-addons">
+      <div class="control is-expanded">
+        <input class="input" type="search" id="search" placeholder="Search" aria-label="Search tiles" autocomplete="off">
+      </div>
+{% if has_subfolders %}
+      <div class="control">
+        <button class="button" type="button" id="search-subfolders" aria-pressed="false" aria-label="Also search subfolders" title="Also search subfolders">
+          <span class="icon is-small">
+            {{ icons.tree() }}
+          </span>
+        </button>
+      </div>
+{% endif %}
+    </div>
   </div>
-  <div class="" style="width: 100%; display: flex; justify-content: center;">
+  <div style="width: 100%; display: flex; flex-direction: column;">
     <div class="columns is-multiline is-centered is-gapless" id="tile-container" data-stream-url="{{ url_for('main.route_stream_tiles', subpath=folder_id) }}">
+    </div>
+    <div class="columns is-multiline is-centered is-gapless is-hidden" id="nested-container" data-stream-url="{{ url_for('main.route_stream_tiles', subpath=folder_id, recursive=1) }}">
     </div>
   </div>
   <p id="tile-message" class="tile-message is-hidden" role="status"

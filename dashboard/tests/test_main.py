@@ -252,6 +252,28 @@ def test_settings_page_config_snippet(tmp_path):
     assert 'id="copy"' in page
 
 
+def test_recursive_stream(tmp_path):
+    client = make_client(tmp_path)
+    events = read_events(client.get("/stream-tiles/?recursive=1", headers=USER, environ_base=PROXY))
+    tiles = [event for event in events if "html" in event]
+
+    assert events[-1] == {"done": True}
+    assert len(tiles) == 1
+    assert '<div class="path white">Folder</div>' in tiles[0]["html"]
+    assert 'data-search="Inner "' in tiles[0]["html"]
+
+    assert read_events(client.get("/stream-tiles/?recursive=1", environ_base=PROXY)) == [{"done": True}]
+
+
+def test_subfolder_toggle_only_with_subfolders(tmp_path):
+    client = make_client(tmp_path)
+    digest = next(iter(client.application.extensions["dashboard.config"].config.id_hash))
+
+    assert 'id="search-subfolders"' in client.get("/", headers=USER, environ_base=PROXY).get_data(as_text=True)
+    folder_page = client.get(f"/folder/{digest}/", headers=USER, environ_base=PROXY).get_data(as_text=True)
+    assert 'id="search-subfolders"' not in folder_page
+
+
 def test_static_urls_are_versioned(tmp_path):
     client = make_client(tmp_path)
     page = client.get("/", headers=USER, environ_base=PROXY).get_data(as_text=True)

@@ -44,8 +44,9 @@ Edit the contents of `user-data/config.yml`. An example can be found [here](./de
 Changes to `config.yml` are picked up within a few seconds, without a restart. If the changed file is invalid, the
 error is logged and the previous configuration stays active.
 
-Type in the search box, or press `/` to jump to it, to filter the tiles of the current page. `Enter` opens the first
-match and `Escape` clears the search.
+Type in the search box, or press `/` to jump to it, to filter the tiles of the current page. The button next to it
+also searches all subfolders below the current page; matches from subfolders show their folder path. `Enter` opens
+the first match and `Escape` clears the search.
 
 ### Security
 

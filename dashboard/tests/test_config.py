@@ -622,3 +622,49 @@ def test_app_config_defaults_and_overrides():
     assert config.authelia_backoff.duration == 0
     config.authelia_backoff.trigger()
     assert not config.authelia_backoff.active()
+
+
+def test_nested_tiles():
+    config = Config(ROOT_DIR, "")
+    assert not config.load(
+        {
+            "tiles": [
+                {"type": "tile", "title": "top", "url": "https://top.com", "allow": ["user:testuser"]},
+                {
+                    "type": "folder",
+                    "id": "a",
+                    "title": "A",
+                    "tiles": [
+                        {"type": "tile", "title": "a1", "url": "https://a1.com", "allow": ["user:testuser"]},
+                        {"type": "tile", "title": "hidden", "url": "https://h.com", "allow": ["user:nobody"]},
+                        {
+                            "type": "folder",
+                            "id": "b",
+                            "title": "B",
+                            "tiles": [
+                                {"type": "tile", "title": "b1", "url": "https://b1.com", "allow": ["user:testuser"]}
+                            ],
+                        },
+                        {
+                            "type": "folder",
+                            "id": "empty",
+                            "title": "Empty",
+                            "tiles": [
+                                {"type": "tile", "title": "h2", "url": "https://h2.com", "allow": ["user:nobody"]}
+                            ],
+                        },
+                    ],
+                },
+            ]
+        }
+    )
+    headers = {"remote_user": "testuser"}
+
+    found = sorted((order, "/".join(path), tile.title) for order, path, tile in config.stream_nested_tiles("", headers))
+    assert found == [(0, "A", "a1"), (2, "A", "B"), (4, "A/B", "b1")]
+
+    assert [(path, tile.title) for _, path, tile in config.stream_nested_tiles("a", headers)] == [(["B"], "b1")]
+    assert list(config.stream_nested_tiles("b", headers)) == []
+
+    assert config.has_subfolders("") and config.has_subfolders("a")
+    assert not config.has_subfolders("b")

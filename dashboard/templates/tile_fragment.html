@@ -5,6 +5,7 @@
                   {% if tile.icon %}<img class="app-icon" src="{{ tile.icon }}" alt="">{% endif %}
                 </div>
                 <div class="details">
+                    {% if path %}<div class="path {{tile.foreground_color}}">{{ path }}</div>{% endif %}
                     <div class="titl {{tile.foreground_color}}">{{tile.title}}</div>
                     <div class="desc {{tile.foreground_color}}">{{tile.description}}</div>
                 </div>
