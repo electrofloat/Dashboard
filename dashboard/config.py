@@ -133,10 +133,15 @@ class Config:
         for index, tile_data in enumerate(tiles):
             if tile_data["type"] != "folder":
                 continue
-            digest = folder_digest(tile_data["title"], index, parent)
+            digest = tile_data.get("id") or folder_digest(tile_data["title"], index, parent)
+            if digest in self.id_hash:
+                return f"Folder id '{digest}' of folder '{tile_data['title']}' is used more than once"
             self.id_hash[digest] = tile_data["tiles"]
             self.folder_digests[id(tile_data)] = digest
-            self.index_folders(tile_data["tiles"], digest)
+            error = self.index_folders(tile_data["tiles"], digest)
+            if error:
+                return error
+        return None
 
     def load(self, from_var=None):
         try:
@@ -172,7 +177,9 @@ class Config:
 
         self.id_hash = {}
         self.folder_digests = {}
-        self.index_folders(self.yaml_config["tiles"])
+        folders_invalid = self.index_folders(self.yaml_config["tiles"])
+        if folders_invalid:
+            return folders_invalid
 
         self.app_config = self.yaml_config.get("app_config", None)
         if self.app_config:

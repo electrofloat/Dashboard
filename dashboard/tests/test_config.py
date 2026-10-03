@@ -523,3 +523,49 @@ def test_zero_authelia_timeout_rejected():
             "tiles": [{"type": "tile", "title": "t", "url": "https://t.com"}],
         }
     )
+
+
+def folder_id_config(inner_id="inner"):
+    return {
+        "tiles": [
+            {
+                "type": "folder",
+                "id": "outer",
+                "title": "Outer",
+                "tiles": [
+                    {
+                        "type": "folder",
+                        "id": inner_id,
+                        "title": "Inner",
+                        "tiles": [{"type": "tile", "title": "a", "url": "https://a.com", "allow": ["user:testuser"]}],
+                    },
+                    {
+                        "type": "folder",
+                        "title": "Generated",
+                        "tiles": [{"type": "tile", "title": "b", "url": "https://b.com", "allow": ["user:testuser"]}],
+                    },
+                ],
+            },
+        ]
+    }
+
+
+def test_folder_ids():
+    config = Config(ROOT_DIR, "")
+    assert not config.load(folder_id_config())
+
+    generated = folder_digest("Generated", 1, "outer")
+    assert set(config.id_hash) == {"outer", "inner", generated}
+
+    tiles = list(config.stream_active_tiles("outer", {"remote_user": "testuser"}))
+    assert sorted(tile.url for _, tile in tiles) == ["/folder/inner/", f"/folder/{generated}/"]
+
+
+def test_duplicate_folder_id_rejected():
+    config = Config(ROOT_DIR, "")
+    assert "used more than once" in str(config.load(folder_id_config(inner_id="outer")))
+
+
+def test_invalid_folder_id_rejected():
+    config = Config(ROOT_DIR, "")
+    assert config.load(folder_id_config(inner_id="not/valid"))

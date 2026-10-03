@@ -92,6 +92,10 @@ tiles:
       - '172.16.0.0/24'
   - type: folder
     title: HomeAssistant
+    # Optional
+    # Fixed id for the folder's url (/folder/<id>/), so the url stays the same when tiles are reordered or renamed.
+    # Only letters, digits, '-' and '_'.
+    id: homeassistant
     icon: di-home-assistant
     tiles:
     - type: tile
