@@ -97,6 +97,16 @@ tiles:
     ).get_data(as_text=True)
 
 
+def test_tile_label_naming(tmp_path):
+    client = make_client(tmp_path)
+    events = read_events(client.get("/stream-tiles/", headers=USER, environ_base=PROXY))
+    folder = next(event["html"] for event in events if event.get("id") == 1)
+
+    assert 'aria-label="Folder"' in folder
+    assert "<img" not in folder
+    assert 'role="img"' not in folder
+
+
 def test_untrusted_peer_headers_ignored(tmp_path):
     client = make_client(tmp_path)
 
