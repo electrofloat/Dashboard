@@ -91,6 +91,11 @@
           "type": "integer",
           "minimum": 0
         },
+        "trusted_proxies": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
         "background": { "type": "string" },
         "settings": { "$ref": "#/$defs/listoflists" }
       },

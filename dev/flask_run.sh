@@ -9,4 +9,5 @@ else
   source venv/bin/activate
 fi
 
-DASHBOARD_USER_DATA=. FLASK_APP=../dashboard FLASK_DEBUG=1 flask run
+# DASHBOARD_DEV_FAKE_AUTH logs everyone in as 'testuser' and skips Authelia
+DASHBOARD_USER_DATA=. DASHBOARD_DEV_FAKE_AUTH=1 FLASK_APP=../dashboard FLASK_DEBUG=1 flask run

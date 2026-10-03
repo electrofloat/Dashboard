@@ -3,6 +3,8 @@ import os
 
 import requests
 
+def dev_fake_auth():
+    return os.environ.get("DASHBOARD_DEV_FAKE_AUTH") == "1"
 
 class Auth:
     def __init__(
@@ -25,10 +27,7 @@ class Auth:
         self.session = requests.Session()
 
     def match_url(self, url):
-        if "FLASK_DEBUG" in os.environ:
-            matches = ["test1", "test2", "test3"]
-            if any(x in url for x in matches):
-                return False
+        if dev_fake_auth():
             return True
 
         if (not self.session_cookie) or (not self.ip) or (not self.authelia_url):

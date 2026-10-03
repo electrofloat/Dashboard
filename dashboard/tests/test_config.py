@@ -1,6 +1,10 @@
 from dashboard.config import ROOT_DIR, CommonTile, Config
 
 
+def match_url_test_hosts(url):
+    return not any(x in url for x in ["test1", "test2", "test3"])
+
+
 def assert_folder(config, subpath, request_headers, assert_count, folder_assert_count):
     def callback(index, tile):
         return (index, tile)
@@ -176,6 +180,7 @@ def test_config_deny(mocker):
     assert_folder(config, "/", request_headers, 2, 2)
 
     mocker.stop(match_url_mock)
+    mocker.patch("dashboard.auth.Auth.match_url", side_effect=match_url_test_hosts)
     assert len(list(config.stream_active_tiles("/", request_headers, None))) == 1
 
     request_headers["remote_user"] = "testuser2"
@@ -369,3 +374,30 @@ def test_config_allow_from_network(mocker):
     request_headers["remote_user"] = "testuser1"
     request_headers["x_forwarded_for"] = "10.0.1.0"
     assert_folder(config, "/", request_headers, 1, 1)
+
+
+def test_client_ip():
+    config = Config(ROOT_DIR, "")
+    assert not config.load(
+        {
+            "app_config": {"trusted_proxies": ["172.16.0.0/12"]},
+            "tiles": [{"type": "tile", "title": "t", "url": "https://t.com"}],
+        }
+    )
+
+    assert config.get_client_ip("172.16.0.2", None) == "172.16.0.2"
+    assert config.get_client_ip("172.16.0.2", "10.0.0.1") == "10.0.0.1"
+    assert config.get_client_ip("172.16.0.2", "1.2.3.4, 10.0.0.1") == "10.0.0.1"
+    assert config.get_client_ip("172.16.0.2", "1.2.3.4, 10.0.0.1, 172.16.0.3") == "10.0.0.1"
+    assert config.is_peer_trusted("172.16.0.2")
+    assert not config.is_peer_trusted("10.0.0.1")
+
+
+def test_invalid_trusted_proxy():
+    config = Config(ROOT_DIR, "")
+    assert config.load(
+        {
+            "app_config": {"trusted_proxies": ["not-a-network"]},
+            "tiles": [{"type": "tile", "title": "t", "url": "https://t.com"}],
+        }
+    )

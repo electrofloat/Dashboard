@@ -2,5 +2,5 @@
 
 docker buildx build -t dashboard:dev ../
 
-docker-compose up
-docker-compose down
+docker compose up
+docker compose down

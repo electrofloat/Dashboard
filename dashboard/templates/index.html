@@ -1,44 +1,8 @@
 {% extends "base.html" %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='index.js') }}" defer></script>
+{% endblock %}
 {% block content %}
-<script>
-document.addEventListener("DOMContentLoaded", function () {
-  const eventSource = new EventSource('/stream-tiles/{{ subpath }}');
-  const loader = document.getElementById("loader");
-  loader.style.display = '';
-
-eventSource.onmessage = function(e) {
-    const data = JSON.parse(e.data);
-
-    if (data.done) {
-        eventSource.close();
-        loader.style.display = 'none';
-        return;
-    }
-
-    const temp = document.createElement('template');
-    temp.innerHTML = data.html;
-    const newTile = temp.content.firstElementChild;
-    newTile.dataset.index = data.id;
-    newTile.classList.add('tile-wrapper')
-
-    const container = document.getElementById('tile-container');
-    const existingTiles = Array.from(container.children);
-    const nextTile = existingTiles.find(tile =>
-        parseInt(tile.dataset.index) > data.id
-    );
-
-    if (nextTile) {
-        container.insertBefore(newTile, nextTile);
-    } else {
-        container.appendChild(newTile);
-    }
-
-  setTimeout(() => {
-        newTile.classList.add('wrapper-visible');
-    }, 20);
-};
-});
-</script>
 <section class="hero is-link is-fullheight">
 <div class="hero-body" style="background-image: url({{ config.appconfig.background_img }}) ;
         background-position: center center;
@@ -57,7 +21,7 @@ eventSource.onmessage = function(e) {
     <span class="loader icon is-small"></span>
   </span>
   <div class="" style="width: 100%; display: flex; justify-content: center;">
-    <div class="columns is-multiline is-centered is-gapless" id="tile-container">
+    <div class="columns is-multiline is-centered is-gapless" id="tile-container" data-stream-url="{{ url_for('main.route_stream_tiles', subpath=folder_id) }}">
     </div>
   </div>
 </div>

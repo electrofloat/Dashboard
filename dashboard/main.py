@@ -1,15 +1,17 @@
-import os
+import json
 
 from flask import (
     Blueprint,
     Response,
     abort,
-    copy_current_request_context,
     current_app,
     make_response,
     render_template,
     request,
+    stream_with_context,
 )
+
+from dashboard.auth import dev_fake_auth
 
 main = Blueprint("main", __name__)
 
@@ -18,25 +20,30 @@ def get_config():
     return current_app.extensions["dashboard.config"]
 
 
-def get_global_error():
-    return current_app.extensions["dashboard.error"]
+@main.before_request
+def check_global_error():
+    if current_app.extensions["dashboard.error"]:
+        response = make_response("Dashboard configuration error, see the server logs for details.", 500)
+        response.mimetype = "text/plain"
+        return response
 
 
-def get_global_error_response():
-    response = make_response(get_global_error(), 200)
-    response.mimetype = "text/plain"
-
-    return response
-
-
-def get_request_headers():
+def get_request_headers(config):
     request_headers = {}
     request_headers["authelia_session"] = request.cookies.get("authelia_session")
-    request_headers["x_forwarded_for"] = request.headers.get("X-Forwarded-For")
-    request_headers["remote_user"] = request.headers.get("Remote-User")
-    request_headers["remote_groups"] = request.headers.get("Remote-Groups")
 
-    if "FLASK_DEBUG" in os.environ:
+    remote_addr = request.remote_addr
+    if config.is_peer_trusted(remote_addr):
+        request_headers["x_forwarded_for"] = config.get_client_ip(remote_addr, request.headers.get("X-Forwarded-For"))
+        request_headers["remote_user"] = request.headers.get("Remote-User")
+        request_headers["remote_groups"] = request.headers.get("Remote-Groups")
+    else:
+        # The request did not come through a trusted proxy, so the identity headers may be forged
+        request_headers["x_forwarded_for"] = remote_addr
+        request_headers["remote_user"] = None
+        request_headers["remote_groups"] = None
+
+    if dev_fake_auth():
         request_headers["x_forwarded_for"] = "10.0.0.1"
         request_headers["remote_user"] = "testuser"
         request_headers["remote_groups"] = "testgroup1,testgroup2"
@@ -46,62 +53,48 @@ def get_request_headers():
 
 @main.route("/")
 def index():
-    if get_global_error():
-        return get_global_error_response()
-
     config = get_config()
-    request_headers = get_request_headers()
-    conf = config.get_app_config(request_headers)
+    conf = config.get_app_config(get_request_headers(config))
 
-    return render_template("index.html", config=conf)
+    return render_template("index.html", config=conf, folder_id="")
 
 
 @main.route("/folder", defaults={"subpath": ""})
 @main.route("/folder/<path:subpath>")
 def route_folder(subpath):
-    if get_global_error():
-        return get_global_error_response()
-
     config = get_config()
-    if (not subpath) or (not config.get_tiles_on_path(subpath.split("/"))):
+    folder_id = subpath.strip("/")
+    if (not folder_id) or (not config.get_tiles(folder_id)):
         abort(404)
 
-    request_headers = get_request_headers()
-    conf = config.get_app_config(request_headers)
+    conf = config.get_app_config(get_request_headers(config))
 
-    return render_template("index.html", config=conf, subpath=subpath)
+    return render_template("index.html", config=conf, folder_id=folder_id)
 
 
 @main.route("/stream-tiles/", defaults={"subpath": ""})
 @main.route("/stream-tiles/<path:subpath>")
 def route_stream_tiles(subpath):
     config = get_config()
-    request_headers = get_request_headers()
+    if not config.get_tiles(subpath):
+        abort(404)
 
-    @copy_current_request_context
-    def render_tile_cb(index, tile):
-        html = render_template("tile_fragment.html", tile=tile)
-        safe_html = html.replace('"', '\\"').replace("\n", "")
-        return {"id": index, "html": safe_html}
+    request_headers = get_request_headers(config)
 
     def generate():
-        for result in config.stream_active_tiles(subpath, request_headers, render_tile_cb):
-            yield f'data: {{"id": {result["id"]}, "html": "{result["html"]}"}}\n\n'
+        for index, tile in config.stream_active_tiles(subpath, request_headers):
+            html = render_template("tile_fragment.html", tile=tile)
+            yield f"data: {json.dumps({'id': index, 'html': html})}\n\n"
 
-        yield 'data: {"done": true}\n\n'
+        yield f"data: {json.dumps({'done': True})}\n\n"
 
-    if subpath and (not config.get_tiles_on_path(subpath.split("/"))):
-        abort(404)
-    return Response(generate(), mimetype="text/event-stream")
+    return Response(stream_with_context(generate()), mimetype="text/event-stream")
 
 
 @main.route("/color")
 def route_color():
-    if get_global_error():
-        return get_global_error_response()
-
     config = get_config()
-    request_headers = get_request_headers()
+    request_headers = get_request_headers(config)
 
     if not config.is_settings_allowed(request_headers):
         abort(401, description="")

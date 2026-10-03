@@ -4,6 +4,29 @@ from flask import Blueprint, Flask
 
 from dashboard.config import Config
 
+CONTENT_SECURITY_POLICY = "; ".join(
+    [
+        "default-src 'self'",
+        "script-src 'self'",
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+        "font-src 'self' https://cdn.jsdelivr.net",
+        "img-src * data:",
+        "connect-src 'self'",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "frame-ancestors 'none'",
+    ]
+)
+
+
+def set_security_headers(response):
+    response.headers.setdefault("Content-Security-Policy", CONTENT_SECURITY_POLICY)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "same-origin")
+    return response
+
 
 def create_app(user_data_path=None):
     app = Flask(__name__)
@@ -31,5 +54,7 @@ def create_app(user_data_path=None):
         static_folder=user_data_path,
     )
     app.register_blueprint(blueprint)
+
+    app.after_request(set_security_headers)
 
     return app

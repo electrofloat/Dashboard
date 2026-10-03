@@ -74,6 +74,7 @@ class Config:
         self.app_config = None
         self.authelia_url = None
         self.authelia_timeout = 5
+        self.trusted_proxies = None
         self.auth = None
         self.id_hash = {}
 
@@ -86,6 +87,12 @@ class Config:
                         ipaddress.ip_network(network)
                     except ValueError as e:
                         return e
+
+        for network in (self.yaml_config.get("app_config") or {}).get("trusted_proxies", []):
+            try:
+                ipaddress.ip_network(network)
+            except ValueError as e:
+                return e
 
         for tile in self.yaml_config["tiles"]:
             networks = tile.get("networks", None)
@@ -139,8 +146,38 @@ class Config:
         if self.app_config:
             self.authelia_url = self.app_config.get("authelia_url", None)
             self.authelia_timeout = self.app_config.get("authelia_timeout", 5)
+            trusted_proxies = self.app_config.get("trusted_proxies", None)
+            if trusted_proxies:
+                self.trusted_proxies = [ipaddress.ip_network(network) for network in trusted_proxies]
 
         return None
+
+    def is_trusted_proxy(self, address):
+        if not self.trusted_proxies or not address:
+            return False
+        try:
+            ip = ipaddress.ip_address(address)
+        except ValueError:
+            return False
+        return any(ip in network for network in self.trusted_proxies)
+
+    def is_peer_trusted(self, remote_addr):
+        if not self.trusted_proxies:
+            return True
+        return self.is_trusted_proxy(remote_addr)
+
+    def get_client_ip(self, remote_addr, forwarded_for):
+        if not forwarded_for:
+            return remote_addr
+
+        hops = [hop.strip() for hop in forwarded_for.split(",") if hop.strip()]
+        if not hops:
+            return remote_addr
+
+        for hop in reversed(hops):
+            if not self.is_trusted_proxy(hop):
+                return hop
+        return hops[0]
 
     def get_background_img(self):
         background = None
@@ -175,11 +212,12 @@ class Config:
 
         return config
 
-    def get_tiles_on_path(self, subpath):
-        if not subpath[0]:
+    def get_tiles(self, folder_id):
+        folder_id = (folder_id or "").strip("/")
+        if not folder_id:
             return self.yaml_config["tiles"]
 
-        return self.id_hash.get(subpath[0], [])
+        return self.id_hash.get(folder_id, None)
 
     def is_tile_permitted(self, tile):
         if not self.auth:
@@ -238,7 +276,7 @@ class Config:
 
         return tile
 
-    def stream_active_tiles(self, subpath, request_headers, callback):
+    def stream_active_tiles(self, subpath, request_headers, callback=None):
         self.auth = Auth(
             request_headers.get("remote_user", None),
             request_headers.get("remote_groups", None),
@@ -248,7 +286,7 @@ class Config:
             self.authelia_url,
             self.authelia_timeout,
         )
-        tiles = self.get_tiles_on_path(subpath.split("/"))
+        tiles = self.get_tiles(subpath) or []
 
         def process(index, tile_data):
             try:

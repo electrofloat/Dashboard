@@ -66,3 +66,14 @@ def test_networks2():
     assert auth.match_network(["external", "10.0.0.1/32"])
     assert not auth.match_network(["external", "10.0.1.0/24"])
     assert not auth.match_network(["10.0.1.0/24", "10.0.2.0/24"])
+
+
+def test_dev_fake_auth_requires_explicit_opt_in(monkeypatch):
+    auth = Auth("", "", "10.0.0.1", None, "", "https://auth.example.org")
+
+    monkeypatch.setenv("FLASK_DEBUG", "0")
+    assert not auth.match_url("https://app.example.org")
+    monkeypatch.setenv("DASHBOARD_DEV_FAKE_AUTH", "0")
+    assert not auth.match_url("https://app.example.org")
+    monkeypatch.setenv("DASHBOARD_DEV_FAKE_AUTH", "1")
+    assert auth.match_url("https://app.example.org")

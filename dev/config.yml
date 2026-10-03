@@ -9,11 +9,19 @@
 app_config:
   # Optional
   # Url to your Authelia instance
+  # The user's Authelia session cookie is sent to this url, so only use http:// for a host on an internal network
   authelia_url: https://auth.example.org
 
   # Optional
   # Timeout to wait for authelia's answer (in seconds), default is 5.
   #authelia_timeout: 5
+
+  # Optional
+  # The addresses of your reverse proxies (CIDR form). If set, the Remote-User, Remote-Groups and X-Forwarded-For
+  # headers are only accepted from these addresses, requests from anywhere else are treated as anonymous.
+  # If not set, these headers are accepted from anyone, so the dashboard must only be reachable through the proxy.
+  #trusted_proxies:
+  #  - '172.16.0.0/12'
 
   # Optional
   # Can be either:
