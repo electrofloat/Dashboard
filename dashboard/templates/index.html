@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "icons.html" as icons %}
 {% block scripts %}
 <script src="{{ url_for('static', filename='index.js') }}" defer></script>
 {% endblock %}
@@ -13,7 +14,7 @@
 {% if config.appconfig.show_settings %}
   <a class="button" style="position: absolute; top: 00px; right: 0px;" href="{{ url_for('main.route_color') }}" aria-label="Settings" title="Settings">
     <span class="icon is-small">
-      <i class="bi bi-gear" aria-hidden="true"></i>
+      {{ icons.gear() }}
     </span>
   </a>
 {% endif %}
@@ -21,7 +22,7 @@
 {% if back_url %}
     <a class="button" href="{{ back_url }}" aria-label="Back" title="Back">
       <span class="icon is-small">
-        <i class="bi bi-arrow-left" aria-hidden="true"></i>
+        {{ icons.arrow_left() }}
       </span>
     </a>
 {% endif %}

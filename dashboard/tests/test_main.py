@@ -156,3 +156,12 @@ def test_security_headers(tmp_path):
 def test_healthz(tmp_path):
     assert make_client(tmp_path).get("/healthz").status_code == 200
     assert make_client(tmp_path, "tiles: []\n").get("/healthz").status_code == 500
+
+
+def test_no_icon_cdn(tmp_path):
+    client = make_client(tmp_path)
+    response = client.get("/", headers=USER, environ_base=PROXY)
+
+    assert "bootstrap-icons" not in response.get_data(as_text=True)
+    assert "<svg" in response.get_data(as_text=True)
+    assert "cdn.jsdelivr.net" not in response.headers["Content-Security-Policy"]
