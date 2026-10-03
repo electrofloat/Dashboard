@@ -595,3 +595,12 @@ def test_folder_visible_when_a_check_fails(mocker):
 
     tiles = list(config.stream_active_tiles("", {"remote_user": "testuser"}))
     assert [tile.title for _, tile in tiles] == ["f"]
+
+
+def test_networks_require_allow_or_deny():
+    config = Config(ROOT_DIR, "")
+    tile = {"type": "tile", "title": "t", "url": "https://t.com", "networks": ["10.0.0.0/24"]}
+
+    assert config.load({"tiles": [tile]})
+    assert not config.load({"tiles": [dict(tile, allow=["user:testuser"])]})
+    assert not config.load({"tiles": [dict(tile, deny=["user:testuser"])]})

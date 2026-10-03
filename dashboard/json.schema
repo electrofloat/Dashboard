@@ -52,7 +52,11 @@
           "required": ["type", "title", "url"],
           "additionalProperties": false,
           "allOf": [
-            { "not": { "required": ["allow", "deny"] } }
+            { "not": { "required": ["allow", "deny"] } },
+            {
+              "if": { "required": ["networks"] },
+              "then": { "anyOf": [{ "required": ["allow"] }, { "required": ["deny"] }] }
+            }
           ]
         },
         {
