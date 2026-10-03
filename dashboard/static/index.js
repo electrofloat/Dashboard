@@ -2,7 +2,10 @@ document.addEventListener("DOMContentLoaded", function () {
   const container = document.getElementById("tile-container");
   const loader = document.getElementById("loader");
   const search = document.getElementById("search");
+  const message = document.getElementById("tile-message");
   const eventSource = new EventSource(container.dataset.streamUrl);
+  let done = false;
+  let failed = false;
   loader.style.display = '';
 
   function stop() {
@@ -23,14 +26,34 @@ document.addEventListener("DOMContentLoaded", function () {
     tile.classList.toggle('is-hidden', !text.includes(query()));
   }
 
+  function updateMessage() {
+    const all = tiles();
+    let text = "";
+    if (all.length === 0 && failed) {
+      text = message.dataset.failed;
+    } else if (all.length === 0 && done) {
+      text = message.dataset.empty;
+    } else if (all.length > 0 && all.every(tile => tile.classList.contains('is-hidden'))) {
+      text = message.dataset.noMatch;
+    }
+    message.textContent = text;
+    message.classList.toggle('is-hidden', !text);
+  }
+
   // Without this the browser reconnects on its own and every tile would be added twice
-  eventSource.onerror = stop;
+  eventSource.onerror = function () {
+    failed = true;
+    stop();
+    updateMessage();
+  };
 
   eventSource.onmessage = function (e) {
     const data = JSON.parse(e.data);
 
     if (data.done) {
+      done = true;
       stop();
+      updateMessage();
       return;
     }
 
@@ -50,6 +73,7 @@ document.addEventListener("DOMContentLoaded", function () {
     } else {
       container.appendChild(newTile);
     }
+    updateMessage();
 
     setTimeout(() => {
       newTile.classList.add('wrapper-visible');
@@ -58,6 +82,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   search.addEventListener("input", function () {
     tiles().forEach(filter);
+    updateMessage();
   });
 
   search.addEventListener("keydown", function (e) {

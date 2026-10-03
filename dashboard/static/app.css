@@ -128,3 +128,15 @@
   transform: translateX(-50%);
   width: min(300px, calc(100% - 100px));
 }
+
+.tile-message {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #fff;
+  font-size: 1.25rem;
+  text-align: center;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .8);
+}

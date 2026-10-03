@@ -37,6 +37,10 @@
     <div class="columns is-multiline is-centered is-gapless" id="tile-container" data-stream-url="{{ url_for('main.route_stream_tiles', subpath=folder_id) }}">
     </div>
   </div>
+  <p id="tile-message" class="tile-message is-hidden" role="status"
+     data-empty="There are no tiles for you here."
+     data-no-match="No tiles match your search."
+     data-failed="Loading the tiles failed. Reload the page to try again."></p>
 </div>
 </section>
 {% endblock %}
