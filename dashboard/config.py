@@ -11,7 +11,7 @@ import webcolors
 import yaml
 from jsonschema import Draft202012Validator
 
-from dashboard.auth import DEFAULT_COOKIE_NAME, Auth, TTLCache
+from dashboard.auth import DEFAULT_COOKIE_NAME, Auth, AutheliaBackoff, Backoff, TTLCache
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -20,6 +20,8 @@ MAX_WORKERS = 8
 # Seconds after which a tile stream gives up waiting for the remaining tiles
 STREAM_TIMEOUT = 30
 DEFAULT_CACHE_TTL = 30
+# Seconds to skip Authelia checks after it failed, so an outage doesn't slow down every page load
+AUTHELIA_BACKOFF = 10
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +91,7 @@ class Config:
         self.authelia_timeout = 5
         self.authelia_cookie_name = DEFAULT_COOKIE_NAME
         self.authz_cache = TTLCache(DEFAULT_CACHE_TTL)
+        self.authelia_backoff = Backoff(AUTHELIA_BACKOFF)
         self.trusted_proxies = None
         self.id_hash = {}
         self.folder_digests = {}
@@ -286,13 +289,19 @@ class Config:
         return True
 
     def is_folder_permitted(self, auth, tiles):
+        error = None
         for tile in tiles:
-            if tile["type"] == "folder":
-                if self.is_folder_permitted(auth, tile["tiles"]):
+            try:
+                if tile["type"] == "folder":
+                    if self.is_folder_permitted(auth, tile["tiles"]):
+                        return True
+                elif self.is_tile_permitted(auth, tile):
                     return True
-            elif self.is_tile_permitted(auth, tile):
-                return True
+            except Exception as e:
+                error = e
 
+        if error:
+            raise error
         return False
 
     def get_tile(self, auth, index, tile_data):
@@ -316,6 +325,7 @@ class Config:
             self.authelia_timeout,
             self.authelia_cookie_name,
             self.authz_cache,
+            self.authelia_backoff,
         )
 
     def stream_active_tiles(self, folder_id, request_headers, callback=None):
@@ -328,6 +338,8 @@ class Config:
         def process(index, tile_data):
             try:
                 return self.get_tile(auth, index, tile_data)
+            except AutheliaBackoff:
+                return None
             except Exception as error:
                 logger.warning(
                     "Authorization check failed for tile '%s': %s",

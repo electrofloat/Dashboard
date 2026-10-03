@@ -1,10 +1,13 @@
+import hashlib
 import http.server
+import socket
 import threading
 
 import pytest
+import requests
 
 import dashboard.auth
-from dashboard.auth import Auth, TTLCache
+from dashboard.auth import Auth, AutheliaBackoff, AutheliaError, Backoff, TTLCache
 
 
 def test_authuser():
@@ -117,7 +120,8 @@ def authelia():
     class Handler(http.server.BaseHTTPRequestHandler):
         def do_HEAD(self):
             requests_seen.append(dict(self.headers))
-            self.send_response(200 if "allowed" in self.headers["X-Original-URL"] else 403)
+            url = self.headers["X-Original-URL"]
+            self.send_response(500 if "error" in url else 200 if "allowed" in url else 403)
             self.send_header("Set-Cookie", "leak=1; Path=/")
             self.end_headers()
 
@@ -162,3 +166,41 @@ def test_match_url_cache(authelia):
     disabled = TTLCache(0)
     disabled.set("x", True)
     assert disabled.get("x") is None
+
+
+def test_server_error_not_cached_and_backs_off(authelia):
+    url, requests_seen = authelia
+    cache = TTLCache(60)
+    backoff = Backoff(60)
+    auth = Auth("", "", "10.0.0.1", None, "cookie1", url, cache=cache, backoff=backoff)
+
+    with pytest.raises(AutheliaError):
+        auth.match_url("https://error.example.org")
+    assert backoff.active()
+    assert len(requests_seen) == 1
+
+    with pytest.raises(AutheliaBackoff):
+        auth.match_url("https://allowed.example.org")
+    assert len(requests_seen) == 1
+
+    backoff._until = 0
+    assert auth.match_url("https://allowed.example.org")
+    backoff.trigger()
+    assert auth.match_url("https://allowed.example.org")
+    cookie_digest = hashlib.sha256(b"cookie1").hexdigest()
+    assert cache.get((cookie_digest, "10.0.0.1", "https://allowed.example.org")) is True
+    assert cache.get((cookie_digest, "10.0.0.1", "https://error.example.org")) is None
+
+
+def test_unreachable_authelia_backs_off():
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    backoff = Backoff(60)
+    auth = Auth("", "", "10.0.0.1", None, "cookie1", f"http://127.0.0.1:{port}", backoff=backoff)
+
+    with pytest.raises(requests.RequestException):
+        auth.match_url("https://allowed.example.org")
+    assert backoff.active()
+    with pytest.raises(AutheliaBackoff):
+        auth.match_url("https://allowed.example.org")

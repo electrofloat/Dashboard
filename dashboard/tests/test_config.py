@@ -1,6 +1,7 @@
 import base64
 import hashlib
 
+from dashboard.auth import AutheliaBackoff
 from dashboard.config import ROOT_DIR, CommonTile, Config, folder_digest
 
 
@@ -570,3 +571,27 @@ def test_duplicate_folder_id_rejected():
 def test_invalid_folder_id_rejected():
     config = Config(ROOT_DIR, "")
     assert config.load(folder_id_config(inner_id="not/valid"))
+
+
+def test_folder_visible_when_a_check_fails(mocker):
+    config = Config(ROOT_DIR, "")
+    assert not config.load(
+        {
+            "app_config": {"authelia_url": "https://auth.example.org"},
+            "tiles": [
+                {
+                    "type": "folder",
+                    "title": "f",
+                    "tiles": [
+                        {"type": "tile", "title": "authelia", "url": "https://a.com"},
+                        {"type": "tile", "title": "allowed", "url": "https://b.com", "allow": ["user:testuser"]},
+                    ],
+                },
+                {"type": "tile", "title": "authelia2", "url": "https://c.com"},
+            ],
+        }
+    )
+    mocker.patch("dashboard.auth.Auth.match_url", side_effect=AutheliaBackoff())
+
+    tiles = list(config.stream_active_tiles("", {"remote_user": "testuser"}))
+    assert [tile.title for _, tile in tiles] == ["f"]

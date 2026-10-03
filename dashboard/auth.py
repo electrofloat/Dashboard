@@ -21,6 +21,27 @@ def _create_session():
 _session = _create_session()
 
 
+class AutheliaError(Exception):
+    pass
+
+
+class AutheliaBackoff(AutheliaError):
+    pass
+
+
+class Backoff:
+    # Remembers a recent Authelia failure, so the following checks don't each wait for the timeout
+    def __init__(self, duration):
+        self.duration = duration
+        self._until = 0.0
+
+    def active(self):
+        return time.monotonic() < self._until
+
+    def trigger(self):
+        self._until = time.monotonic() + self.duration
+
+
 class TTLCache:
     def __init__(self, ttl, maxsize=4096):
         self.ttl = ttl
@@ -63,6 +84,7 @@ class Auth:
         authelia_timeout=5,
         cookie_name=DEFAULT_COOKIE_NAME,
         cache=None,
+        backoff=None,
     ):
         self.user = user
         self.groups = groups
@@ -73,6 +95,7 @@ class Auth:
         self.authelia_timeout = authelia_timeout
         self.cookie_name = cookie_name
         self.cache = cache
+        self.backoff = backoff
 
     def match_url(self, url):
         if dev_fake_auth():
@@ -89,16 +112,31 @@ class Auth:
             if cached is not None:
                 return cached
 
-        response = _session.head(
-            url=f"{self.authelia_url}/api/authz/auth-request",
-            headers={
-                "Cookie": f"{self.cookie_name}={self.session_cookie}",
-                "X-Original-Method": "HEAD",
-                "X-Original-URL": url,
-                "X-Forwarded-For": self.ip,
-            },
-            timeout=self.authelia_timeout,
-        )
+        if self.backoff is not None and self.backoff.active():
+            raise AutheliaBackoff("Authelia failed recently, check skipped")
+
+        try:
+            response = _session.head(
+                url=f"{self.authelia_url}/api/authz/auth-request",
+                headers={
+                    "Cookie": f"{self.cookie_name}={self.session_cookie}",
+                    "X-Original-Method": "HEAD",
+                    "X-Original-URL": url,
+                    "X-Forwarded-For": self.ip,
+                },
+                timeout=self.authelia_timeout,
+            )
+        except requests.RequestException:
+            if self.backoff is not None:
+                self.backoff.trigger()
+            raise
+
+        # A server error is not an answer, so it must not be cached as a denial
+        if response.status_code >= 500:
+            if self.backoff is not None:
+                self.backoff.trigger()
+            raise AutheliaError(f"Authelia answered with status {response.status_code}")
+
         allowed = response.status_code == 200
 
         if cache_key is not None:
