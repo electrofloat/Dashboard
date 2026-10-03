@@ -175,3 +175,15 @@ def test_background_url_escaped(tmp_path):
     start = page.index('<div class="hero-body" style="') + len('<div class="hero-body" style="')
     style = html.unescape(page[start : page.index('"', start)])
     assert 'url("/static/userdata/backgrounds/x\\27 \\29 ;background:red;/*")' in style
+
+
+def test_page_title(tmp_path):
+    client = make_client(tmp_path, CONFIG.replace("app_config:", "app_config:\n  title: Home Lab"))
+    digest = next(iter(client.application.extensions["dashboard.config"].id_hash))
+
+    assert "<title>Home Lab</title>" in client.get("/", headers=USER, environ_base=PROXY).get_data(as_text=True)
+    folder_page = client.get(f"/folder/{digest}/", headers=USER, environ_base=PROXY).get_data(as_text=True)
+    assert "<title>Folder - Home Lab</title>" in folder_page
+    assert "<title>Dashboard</title>" in make_client(tmp_path).get("/", headers=USER, environ_base=PROXY).get_data(
+        as_text=True
+    )

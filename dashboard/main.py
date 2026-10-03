@@ -81,7 +81,13 @@ def route_folder(subpath):
     else:
         back_url = url_for("main.index")
 
-    return render_template("index.html", config=conf, folder_id=folder_id, back_url=back_url)
+    return render_template(
+        "index.html",
+        config=conf,
+        folder_id=folder_id,
+        back_url=back_url,
+        page_title=config.folder_titles.get(folder_id),
+    )
 
 
 @main.route("/stream-tiles/", defaults={"subpath": ""})

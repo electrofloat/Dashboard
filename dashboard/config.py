@@ -22,6 +22,7 @@ STREAM_TIMEOUT = 30
 DEFAULT_CACHE_TTL = 30
 # Seconds to skip Authelia checks after it failed, so an outage doesn't slow down every page load
 DEFAULT_AUTHELIA_BACKOFF = 10
+DEFAULT_TITLE = "Dashboard"
 
 logger = logging.getLogger(__name__)
 
@@ -92,10 +93,12 @@ class Config:
         self.authelia_cookie_name = DEFAULT_COOKIE_NAME
         self.authz_cache = TTLCache(DEFAULT_CACHE_TTL)
         self.authelia_backoff = Backoff(DEFAULT_AUTHELIA_BACKOFF)
+        self.title = DEFAULT_TITLE
         self.trusted_proxies = None
         self.id_hash = {}
         self.folder_digests = {}
         self.folder_parents = {}
+        self.folder_titles = {}
 
     def validate_network(self):
         network_definitions = self.yaml_config.get("network", None)
@@ -143,6 +146,7 @@ class Config:
             self.id_hash[digest] = tile_data["tiles"]
             self.folder_digests[id(tile_data)] = digest
             self.folder_parents[digest] = parent
+            self.folder_titles[digest] = tile_data["title"]
             error = self.index_folders(tile_data["tiles"], digest)
             if error:
                 return error
@@ -183,6 +187,7 @@ class Config:
         self.id_hash = {}
         self.folder_digests = {}
         self.folder_parents = {}
+        self.folder_titles = {}
         folders_invalid = self.index_folders(self.yaml_config["tiles"])
         if folders_invalid:
             return folders_invalid
@@ -194,6 +199,7 @@ class Config:
             self.authelia_cookie_name = self.app_config.get("authelia_cookie_name", DEFAULT_COOKIE_NAME)
             self.authz_cache = TTLCache(self.app_config.get("authelia_cache_ttl", DEFAULT_CACHE_TTL))
             self.authelia_backoff = Backoff(self.app_config.get("authelia_backoff", DEFAULT_AUTHELIA_BACKOFF))
+            self.title = self.app_config.get("title", DEFAULT_TITLE)
             trusted_proxies = self.app_config.get("trusted_proxies", None)
             if trusted_proxies:
                 self.trusted_proxies = [ipaddress.ip_network(network) for network in trusted_proxies]
@@ -258,6 +264,7 @@ class Config:
         dict_appconfig = {}
         config = {"appconfig": dict_appconfig}
 
+        dict_appconfig["title"] = self.title
         dict_appconfig["background_img"] = self.get_background_img()
         dict_appconfig["show_settings"] = self.is_settings_allowed(request_headers)
 

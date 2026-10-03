@@ -8,6 +8,10 @@
 # Contains global configurations
 app_config:
   # Optional
+  # Title of the browser tab, default is Dashboard.
+  #title: Dashboard
+
+  # Optional
   # Url to your Authelia instance
   # The user's Authelia session cookie is sent to this url, so only use http:// for a host on an internal network
   authelia_url: https://auth.example.org
@@ -100,7 +104,7 @@ tiles:
     # Optional
     # Fixed id for the folder's url (/folder/<id>/), so the url stays the same when tiles are reordered or renamed.
     # Only letters, digits, '-' and '_'.
-    id: homeassistant
+    #id: homeassistant
     icon: di-home-assistant
     tiles:
     - type: tile

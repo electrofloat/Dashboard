@@ -606,17 +606,19 @@ def test_networks_require_allow_or_deny():
     assert not config.load({"tiles": [dict(tile, deny=["user:testuser"])]})
 
 
-def test_authelia_backoff_setting():
+def test_app_config_defaults_and_overrides():
     config = Config(ROOT_DIR, "")
     assert not config.load({"tiles": [{"type": "tile", "title": "t", "url": "https://t.com"}]})
+    assert config.title == "Dashboard"
     assert config.authelia_backoff.duration == 10
 
     assert not config.load(
         {
-            "app_config": {"authelia_backoff": 0},
+            "app_config": {"title": "Home Lab", "authelia_backoff": 0},
             "tiles": [{"type": "tile", "title": "t", "url": "https://t.com"}],
         }
     )
+    assert config.title == "Home Lab"
     assert config.authelia_backoff.duration == 0
     config.authelia_backoff.trigger()
     assert not config.authelia_backoff.active()
