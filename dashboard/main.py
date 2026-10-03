@@ -1,25 +1,29 @@
-from flask import (
-    Flask,
-    request,
-    Blueprint,
-    render_template,
-    abort,
-    make_response,
-    Response,
-    copy_current_request_context,
-)
 import os
 
-from dashboard.config import Config
+from flask import (
+    Blueprint,
+    Response,
+    abort,
+    copy_current_request_context,
+    current_app,
+    make_response,
+    render_template,
+    request,
+)
 
 main = Blueprint("main", __name__)
-user_data_path = None
-global_error = None
-config = None
+
+
+def get_config():
+    return current_app.extensions["dashboard.config"]
+
+
+def get_global_error():
+    return current_app.extensions["dashboard.error"]
 
 
 def get_global_error_response():
-    response = make_response(global_error, 200)
+    response = make_response(get_global_error(), 200)
     response.mimetype = "text/plain"
 
     return response
@@ -42,9 +46,10 @@ def get_request_headers():
 
 @main.route("/")
 def index():
-    if global_error:
+    if get_global_error():
         return get_global_error_response()
 
+    config = get_config()
     request_headers = get_request_headers()
     conf = config.get_app_config(request_headers)
 
@@ -54,9 +59,10 @@ def index():
 @main.route("/folder", defaults={"subpath": ""})
 @main.route("/folder/<path:subpath>")
 def route_folder(subpath):
-    if global_error:
+    if get_global_error():
         return get_global_error_response()
 
+    config = get_config()
     if (not subpath) or (not config.get_tiles_on_path(subpath.split("/"))):
         abort(404)
 
@@ -69,6 +75,7 @@ def route_folder(subpath):
 @main.route("/stream-tiles/", defaults={"subpath": ""})
 @main.route("/stream-tiles/<path:subpath>")
 def route_stream_tiles(subpath):
+    config = get_config()
     request_headers = get_request_headers()
 
     @copy_current_request_context
@@ -90,9 +97,10 @@ def route_stream_tiles(subpath):
 
 @main.route("/color")
 def route_color():
-    if global_error:
+    if get_global_error():
         return get_global_error_response()
 
+    config = get_config()
     request_headers = get_request_headers()
 
     if not config.is_settings_allowed(request_headers):
@@ -100,15 +108,3 @@ def route_color():
 
     conf = config.get_app_config(request_headers)
     return render_template("color.html", config=conf)
-
-
-app = Flask(__name__)
-with app.app_context():
-    user_data_path = os.path.abspath(os.path.join(app.root_path, "..", "user-data"))
-    if "FLASK_DEBUG" in os.environ:
-        user_data_path = "."
-    config = Config(app.root_path, user_data_path)
-    error = config.load()
-    if error:
-        global_error = f"Error opening config.yml; error='{error}'"
-        print(global_error)

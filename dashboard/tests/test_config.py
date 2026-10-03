@@ -1,4 +1,4 @@
-from dashboard.config import Config, CommonTile
+from dashboard.config import ROOT_DIR, CommonTile, Config
 
 
 def assert_folder(config, subpath, request_headers, assert_count, folder_assert_count):
@@ -19,7 +19,7 @@ def assert_folder(config, subpath, request_headers, assert_count, folder_assert_
 
 
 def test_norequest_headers(mocker):
-    config = Config("../dashboard", "")
+    config = Config(ROOT_DIR, "")
     yaml_config = {
         "app_config": {"settings": ["user:testuser"]},
         "tiles": [
@@ -44,7 +44,7 @@ def test_norequest_headers(mocker):
 
 
 def test_noappconfig(mocker):
-    config = Config("../dashboard", "")
+    config = Config(ROOT_DIR, "")
     yaml_config = {
         "tiles": [
             {
@@ -73,7 +73,7 @@ def test_noappconfig(mocker):
 
 
 def test_config_common(mocker):
-    config = Config("../dashboard", "")
+    config = Config(ROOT_DIR, "")
     yaml_config = {
         "app_config": {
             "authelia_url": "https://auth.example.org",
@@ -128,7 +128,7 @@ def test_config_common(mocker):
 
 
 def test_config_deny(mocker):
-    config = Config("../dashboard", "")
+    config = Config(ROOT_DIR, "")
     yaml_config = {
         "app_config": {
             "authelia_url": "https://auth.example.org",
@@ -183,7 +183,7 @@ def test_config_deny(mocker):
 
 
 def test_config_deny_from_network(mocker):
-    config = Config("../dashboard", "")
+    config = Config(ROOT_DIR, "")
     yaml_config = {
         "app_config": {
             "authelia_url": "https://auth.example.org",
@@ -234,7 +234,7 @@ def test_config_deny_from_network(mocker):
     request_headers["remote_groups"] = ""
     request_headers["authelia_session"] = ""
 
-    match_url_mock = mocker.patch("dashboard.auth.Auth.match_url", return_value=True)
+    mocker.patch("dashboard.auth.Auth.match_url", return_value=True)
 
     assert_folder(config, "/", request_headers, 1, 1)
 
@@ -251,7 +251,7 @@ def test_config_deny_from_network(mocker):
 
 
 def test_config_allow(mocker):
-    config = Config("../dashboard", "")
+    config = Config(ROOT_DIR, "")
     yaml_config = {
         "app_config": {
             "authelia_url": "https://auth.example.org",
@@ -306,7 +306,7 @@ def test_config_allow(mocker):
 
 
 def test_config_allow_from_network(mocker):
-    config = Config("../dashboard", "")
+    config = Config(ROOT_DIR, "")
     yaml_config = {
         "app_config": {
             "authelia_url": "https://auth.example.org",

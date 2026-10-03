@@ -1,21 +1,23 @@
-import yaml
-import os
-from jsonschema import Draft202012Validator
-import ipaddress
-import re
-import webcolors
-import json
-import time
-import hashlib
 import base64
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import hashlib
+import ipaddress
+import json
+import os
+import re
+
+import webcolors
+import yaml
+from jsonschema import Draft202012Validator
 
 from dashboard.auth import Auth
 
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+
 
 class CommonTile:
+    DEFAULT_BACKGROUND = "#161b1f"
+
     def __init__(self, tile_data, index):
-        self.DEFAULT_BACKGROUND = "#161b1f"
         self.title = tile_data.get("title", "")
         self.description = tile_data.get("description", "")
         self.icon = self.get_icon(tile_data.get("icon", None))
@@ -36,11 +38,6 @@ class CommonTile:
 
     def get_foreground_color(self, color):
         color_rgb = webcolors.hex_to_rgb(color)
-        luminance = (
-            0.2126 * (color_rgb.red / 255.0) ** 2.2
-            + 0.7152 * (color_rgb.green / 255.0) ** 2.2
-            + 0.0722 * (color_rgb.blue / 255.0) ** 2.2
-        )
         luma = (0.212 * color_rgb.red + 0.701 * color_rgb.green + 0.087 * color_rgb.blue) / 255
 
         if luma > 0.5:
@@ -50,13 +47,12 @@ class CommonTile:
 
 
 class Tile(CommonTile):
-    def __init__(self, tile_data, index):
-        super(Tile, self).__init__(tile_data, index)
+    pass
 
 
 class Folder(CommonTile):
     def __init__(self, tile_data, index):
-        super(Folder, self).__init__(tile_data, index)
+        super().__init__(tile_data, index)
         self.url = f"/folder/{self.get_url_digest(index)}/"
         self.tiles = tile_data.get("tiles", None)
 
@@ -72,7 +68,7 @@ class Config:
     STATIC_URL = "/static/"
     USERDATA_URL = "/static/userdata/"
 
-    def __init__(self, root_dir, user_data_path):
+    def __init__(self, root_dir=ROOT_DIR, user_data_path=""):
         self.user_data_path = user_data_path
         self.root_dir = root_dir
         self.app_config = None
@@ -98,11 +94,11 @@ class Config:
 
             for network in networks:
                 try:
-                    ip_network = ipaddress.ip_network(network)
+                    ipaddress.ip_network(network)
                 except ValueError as e:
                     if not network_definitions:
                         return e
-                    if network_definitions.get(network, None) == None:
+                    if network_definitions.get(network, None) is None:
                         return e
 
         return None
@@ -220,7 +216,7 @@ class Config:
 
         return False
 
-    def get_tile(self, index, tile_data, subpath):
+    def get_tile(self, index, tile_data):
         if "type" not in tile_data or (tile_data["type"] != "tile" and tile_data["type"] != "folder"):
             return None
 
@@ -252,13 +248,11 @@ class Config:
             self.authelia_url,
             self.authelia_timeout,
         )
-        TIMEOUT = 30  # seconds
         tiles = self.get_tiles_on_path(subpath.split("/"))
-        start_time = time.time()
 
         def process(index, tile_data):
             try:
-                tile = self.get_tile(index, tile_data, subpath)
+                tile = self.get_tile(index, tile_data)
                 if not tile:
                     return (None, None)
             except Exception:
@@ -276,26 +270,3 @@ class Config:
                 yield (index, tile)
 
         self.auth = None
-        # Doing requests in parallel with ThreadPoolExecutor seems to be slower on local network with authelia
-        """
-    with ThreadPoolExecutor(max_workers=8) as executor:
-      #futures = [executor.submit(process, i, t) for i, t in enumerate(tiles)]
-      futures = []
-      for i, t in enumerate(tiles):
-        futures.append(executor.submit(process, i, t))
-        time.sleep(0.05)
-
-      try:
-        for future in as_completed(futures, timeout = TIMEOUT):
-          if time.time() - start_time > TIMEOUT:
-            break
-          result = future.result()
-          if result:
-            index, tile = result
-            if callback:
-              yield callback(index, tile)
-            else:
-              yield (index, tile)
-      except TimeoutError:
-        print("Streaming tiles timed out", flush=True)
-    """

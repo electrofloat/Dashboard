@@ -9,4 +9,4 @@ else
   source venv/bin/activate
 fi
 
-FLASK_APP=../dashboard FLASK_DEBUG=1 flask run
+DASHBOARD_USER_DATA=. FLASK_APP=../dashboard FLASK_DEBUG=1 flask run

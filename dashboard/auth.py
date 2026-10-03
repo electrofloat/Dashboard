@@ -1,6 +1,7 @@
 import ipaddress
-import requests
 import os
+
+import requests
 
 
 class Auth:
@@ -52,7 +53,7 @@ class Auth:
         ip = None
         try:
             ip = ipaddress.ip_address(self.ip)
-        except ValueError as e:
+        except ValueError:
             return False
 
         for network in networks:
@@ -61,7 +62,7 @@ class Auth:
                     ip_net = None
                     try:
                         ip_net = ipaddress.ip_network(network_definition)
-                    except ValueError as e:
+                    except ValueError:
                         return False
                     if ip in ip_net:
                         return True
@@ -69,7 +70,7 @@ class Auth:
                 ip_net = None
                 try:
                     ip_net = ipaddress.ip_network(network)
-                except ValueError as e:
+                except ValueError:
                     continue
                 if ip in ip_net:
                     return True
