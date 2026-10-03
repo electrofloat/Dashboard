@@ -239,3 +239,11 @@ def test_search_data(tmp_path):
     page = client.get("/", headers=USER, environ_base=PROXY).get_data(as_text=True)
     assert 'id="search"' in page
     assert "<title>Dashboard</title>" in page
+
+
+def test_settings_page_config_snippet(tmp_path):
+    page = make_client(tmp_path).get("/color", headers=USER, environ_base=PROXY).get_data(as_text=True)
+
+    assert 'id="url_input"' in page
+    assert 'id="yaml"' in page
+    assert 'id="copy"' in page

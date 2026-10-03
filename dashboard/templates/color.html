@@ -50,18 +50,30 @@
               <div class="field">
                 <label class="label">Description</label>
                 <div class="control">
-                  <input id="description_input" class="input" type="text" placeholder="Example Description" />
+                  <input id="description_input" class="input" type="text" placeholder="Example Description" value="Example Description" />
                 </div>
               </div>
               <div class="field">
                 <label class="label">Icon src</label>
                 <div class="control">
-                  <input id="icon_input" class="input" type="text" placeholder="di-linux" />
+                  <input id="icon_input" class="input" type="text" placeholder="di-linux" value="di-linux" />
+                </div>
+              </div>
+              <div class="field">
+                <label class="label">Url</label>
+                <div class="control">
+                  <input id="url_input" class="input" type="url" placeholder="https://app.example.org" />
                 </div>
               </div>
               <label for="color-picker">Color:</label>
               <input type="color" value="#161b1f" id="color-picker" />
               Value: <span id="value">#161b1f</span>
+              <div class="field mt-4">
+                <label class="label">Config</label>
+                <pre id="yaml" class="yaml"></pre>
+              </div>
+              <button id="copy" class="button is-small" type="button">Copy</button>
+              <span id="copy-status" class="ml-2" role="status"></span>
           </div>
         </div>
       </div>
