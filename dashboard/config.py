@@ -92,6 +92,7 @@ class Config:
         self.trusted_proxies = None
         self.id_hash = {}
         self.folder_digests = {}
+        self.folder_parents = {}
 
     def validate_network(self):
         network_definitions = self.yaml_config.get("network", None)
@@ -138,6 +139,7 @@ class Config:
                 return f"Folder id '{digest}' of folder '{tile_data['title']}' is used more than once"
             self.id_hash[digest] = tile_data["tiles"]
             self.folder_digests[id(tile_data)] = digest
+            self.folder_parents[digest] = parent
             error = self.index_folders(tile_data["tiles"], digest)
             if error:
                 return error
@@ -177,6 +179,7 @@ class Config:
 
         self.id_hash = {}
         self.folder_digests = {}
+        self.folder_parents = {}
         folders_invalid = self.index_folders(self.yaml_config["tiles"])
         if folders_invalid:
             return folders_invalid

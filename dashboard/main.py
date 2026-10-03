@@ -9,6 +9,7 @@ from flask import (
     render_template,
     request,
     stream_with_context,
+    url_for,
 )
 
 from dashboard.auth import dev_fake_auth
@@ -69,7 +70,13 @@ def route_folder(subpath):
 
     conf = config.get_app_config(get_request_headers(config))
 
-    return render_template("index.html", config=conf, folder_id=folder_id)
+    parent = config.folder_parents.get(folder_id)
+    if parent:
+        back_url = url_for("main.route_folder", subpath=f"{parent}/")
+    else:
+        back_url = url_for("main.index")
+
+    return render_template("index.html", config=conf, folder_id=folder_id, back_url=back_url)
 
 
 @main.route("/stream-tiles/", defaults={"subpath": ""})

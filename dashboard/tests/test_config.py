@@ -556,6 +556,7 @@ def test_folder_ids():
 
     generated = folder_digest("Generated", 1, "outer")
     assert set(config.id_hash) == {"outer", "inner", generated}
+    assert config.folder_parents == {"outer": "", "inner": "outer", generated: "outer"}
 
     tiles = list(config.stream_active_tiles("outer", {"remote_user": "testuser"}))
     assert sorted(tile.url for _, tile in tiles) == ["/folder/inner/", f"/folder/{generated}/"]

@@ -69,6 +69,34 @@ def test_folder_deep_link_after_start(tmp_path):
     assert client.get(f"/folder/{digest}/extra'text").status_code == 404
 
 
+def test_back_button(tmp_path):
+    client = make_client(
+        tmp_path,
+        """
+app_config:
+  trusted_proxies: ['172.16.0.0/12']
+tiles:
+  - type: folder
+    id: outer
+    title: Outer
+    tiles:
+      - type: folder
+        id: inner
+        title: Inner
+        tiles:
+          - {type: tile, title: T, url: 'https://t.example.org', allow: ['user:testuser']}
+""",
+    )
+
+    assert 'aria-label="Back"' not in client.get("/", headers=USER, environ_base=PROXY).get_data(as_text=True)
+    assert 'href="/" aria-label="Back"' in client.get("/folder/outer/", headers=USER, environ_base=PROXY).get_data(
+        as_text=True
+    )
+    assert 'href="/folder/outer/" aria-label="Back"' in client.get(
+        "/folder/inner/", headers=USER, environ_base=PROXY
+    ).get_data(as_text=True)
+
+
 def test_untrusted_peer_headers_ignored(tmp_path):
     client = make_client(tmp_path)
 

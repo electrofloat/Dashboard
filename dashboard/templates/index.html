@@ -17,9 +17,18 @@
     </span>
   </a>
 {% endif %}
-  <span class="button" style="position: absolute; top: 00px; left: 0px; display: none;" id="loader">
-    <span class="loader icon is-small"></span>
-  </span>
+  <div style="position: absolute; top: 0px; left: 0px; display: flex;">
+{% if back_url %}
+    <a class="button" href="{{ back_url }}" aria-label="Back" title="Back">
+      <span class="icon is-small">
+        <i class="bi bi-arrow-left" aria-hidden="true"></i>
+      </span>
+    </a>
+{% endif %}
+    <span class="button" style="display: none;" id="loader">
+      <span class="loader icon is-small"></span>
+    </span>
+  </div>
   <div class="" style="width: 100%; display: flex; justify-content: center;">
     <div class="columns is-multiline is-centered is-gapless" id="tile-container" data-stream-url="{{ url_for('main.route_stream_tiles', subpath=folder_id) }}">
     </div>
