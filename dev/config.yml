@@ -25,6 +25,11 @@ app_config:
   #authelia_cache_ttl: 30
 
   # Optional
+  # Seconds to skip Authelia checks after it failed or timed out, default is 10. 0 disables it.
+  # Tiles that need Authelia are hidden during this time, the others are shown right away.
+  #authelia_backoff: 10
+
+  # Optional
   # The addresses of your reverse proxies (CIDR form). If set, the Remote-User, Remote-Groups and X-Forwarded-For
   # headers are only accepted from these addresses, requests from anywhere else are treated as anonymous.
   # If not set, these headers are accepted from anyone, so the dashboard must only be reachable through the proxy.

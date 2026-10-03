@@ -21,7 +21,7 @@ MAX_WORKERS = 8
 STREAM_TIMEOUT = 30
 DEFAULT_CACHE_TTL = 30
 # Seconds to skip Authelia checks after it failed, so an outage doesn't slow down every page load
-AUTHELIA_BACKOFF = 10
+DEFAULT_AUTHELIA_BACKOFF = 10
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +91,7 @@ class Config:
         self.authelia_timeout = 5
         self.authelia_cookie_name = DEFAULT_COOKIE_NAME
         self.authz_cache = TTLCache(DEFAULT_CACHE_TTL)
-        self.authelia_backoff = Backoff(AUTHELIA_BACKOFF)
+        self.authelia_backoff = Backoff(DEFAULT_AUTHELIA_BACKOFF)
         self.trusted_proxies = None
         self.id_hash = {}
         self.folder_digests = {}
@@ -193,6 +193,7 @@ class Config:
             self.authelia_timeout = self.app_config.get("authelia_timeout", 5)
             self.authelia_cookie_name = self.app_config.get("authelia_cookie_name", DEFAULT_COOKIE_NAME)
             self.authz_cache = TTLCache(self.app_config.get("authelia_cache_ttl", DEFAULT_CACHE_TTL))
+            self.authelia_backoff = Backoff(self.app_config.get("authelia_backoff", DEFAULT_AUTHELIA_BACKOFF))
             trusted_proxies = self.app_config.get("trusted_proxies", None)
             if trusted_proxies:
                 self.trusted_proxies = [ipaddress.ip_network(network) for network in trusted_proxies]
