@@ -1,8 +1,9 @@
+import logging
 import os
 
 from flask import Blueprint, Flask
 
-from dashboard.config import Config
+from dashboard.config import ConfigReloader
 
 CONTENT_SECURITY_POLICY = "; ".join(
     [
@@ -42,13 +43,14 @@ def create_app(user_data_path=None):
         user_data_path = os.environ.get("DASHBOARD_USER_DATA") or os.path.join(app.root_path, "..", "user-data")
     user_data_path = os.path.abspath(user_data_path)
 
-    config = Config(app.root_path, user_data_path)
-    error = config.load()
-    if error:
-        error = f"Error opening config.yml; error='{error}'"
-        app.logger.error(error)
-    app.extensions["dashboard.config"] = config
-    app.extensions["dashboard.error"] = error
+    logger = logging.getLogger("dashboard")
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s"))
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+
+    app.extensions["dashboard.config"] = ConfigReloader(app.root_path, user_data_path)
 
     from dashboard.main import main as main_blueprint
 

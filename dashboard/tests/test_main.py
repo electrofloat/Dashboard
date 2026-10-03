@@ -59,7 +59,7 @@ def test_stream_is_valid_json(tmp_path):
 def test_folder_deep_link_after_start(tmp_path):
     client = make_client(tmp_path)
     app = client.application
-    digest = next(iter(app.extensions["dashboard.config"].id_hash))
+    digest = next(iter(app.extensions["dashboard.config"].config.id_hash))
 
     assert client.get(f"/folder/{digest}/", headers=USER, environ_base=PROXY).status_code == 200
     events = read_events(client.get(f"/stream-tiles/{digest}/", headers=USER, environ_base=PROXY))
@@ -179,7 +179,7 @@ def test_background_url_escaped(tmp_path):
 
 def test_page_title(tmp_path):
     client = make_client(tmp_path, CONFIG.replace("app_config:", "app_config:\n  title: Home Lab"))
-    digest = next(iter(client.application.extensions["dashboard.config"].id_hash))
+    digest = next(iter(client.application.extensions["dashboard.config"].config.id_hash))
 
     assert "<title>Home Lab</title>" in client.get("/", headers=USER, environ_base=PROXY).get_data(as_text=True)
     folder_page = client.get(f"/folder/{digest}/", headers=USER, environ_base=PROXY).get_data(as_text=True)
@@ -187,3 +187,47 @@ def test_page_title(tmp_path):
     assert "<title>Dashboard</title>" in make_client(tmp_path).get("/", headers=USER, environ_base=PROXY).get_data(
         as_text=True
     )
+
+
+def tile_config(*titles):
+    tiles = "".join(
+        f"  - {{type: tile, title: {t}, url: 'https://{t}.example.org', allow: ['user:testuser']}}\n" for t in titles
+    )
+    return f"app_config:\n  trusted_proxies: ['172.16.0.0/12']\ntiles:\n{tiles}"
+
+
+def stream_titles(client):
+    events = read_events(client.get("/stream-tiles/", headers=USER, environ_base=PROXY))
+    return sorted(
+        event["html"].split('class="titl ')[1].split(">")[1].split("<")[0] for event in events if "html" in event
+    )
+
+
+def test_config_reload(tmp_path):
+    client = make_client(tmp_path, tile_config("first"))
+    client.application.extensions["dashboard.config"].interval = 0
+    assert stream_titles(client) == ["first"]
+
+    (tmp_path / "config.yml").write_text(tile_config("first", "second"))
+    assert stream_titles(client) == ["first", "second"]
+
+    (tmp_path / "config.yml").write_text("tiles: []\n")
+    assert client.get("/", headers=USER, environ_base=PROXY).status_code == 200
+    assert stream_titles(client) == ["first", "second"]
+
+
+def test_config_reload_recovers_from_startup_error(tmp_path):
+    client = make_client(tmp_path, "tiles: []\n")
+    client.application.extensions["dashboard.config"].interval = 0
+    assert client.get("/").status_code == 500
+
+    (tmp_path / "config.yml").write_text(tile_config("fixed"))
+    assert stream_titles(client) == ["fixed"]
+
+
+def test_config_reload_interval(tmp_path):
+    client = make_client(tmp_path, tile_config("first"))
+    assert stream_titles(client) == ["first"]
+
+    (tmp_path / "config.yml").write_text(tile_config("first", "second"))
+    assert stream_titles(client) == ["first"]

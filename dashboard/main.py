@@ -18,12 +18,14 @@ main = Blueprint("main", __name__)
 
 
 def get_config():
-    return current_app.extensions["dashboard.config"]
+    return current_app.extensions["dashboard.config"].config
 
 
 @main.before_request
 def check_global_error():
-    if current_app.extensions["dashboard.error"]:
+    reloader = current_app.extensions["dashboard.config"]
+    reloader.refresh()
+    if reloader.error:
         response = make_response("Dashboard configuration error, see the server logs for details.", 500)
         response.mimetype = "text/plain"
         return response

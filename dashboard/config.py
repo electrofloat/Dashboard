@@ -6,6 +6,8 @@ import json
 import logging
 import os
 import re
+import threading
+import time
 
 import webcolors
 import yaml
@@ -23,6 +25,8 @@ DEFAULT_CACHE_TTL = 30
 # Seconds to skip Authelia checks after it failed, so an outage doesn't slow down every page load
 DEFAULT_AUTHELIA_BACKOFF = 10
 DEFAULT_TITLE = "Dashboard"
+# Seconds between checks whether config.yml changed
+RELOAD_INTERVAL = 2
 
 logger = logging.getLogger(__name__)
 
@@ -372,3 +376,52 @@ class Config:
             logger.warning("Streaming tiles timed out")
         finally:
             executor.shutdown(wait=False, cancel_futures=True)
+
+
+class ConfigReloader:
+    def __init__(self, root_dir, user_data_path, interval=RELOAD_INTERVAL):
+        self.root_dir = root_dir
+        self.user_data_path = user_data_path
+        self.path = os.path.join(user_data_path, "config.yml")
+        self.interval = interval
+        self.config = None
+        self.error = None
+        self._signature = None
+        self._next_check = 0.0
+        self._lock = threading.Lock()
+        self._load()
+
+    def _file_signature(self):
+        try:
+            stat = os.stat(self.path)
+        except OSError:
+            return None
+        return (stat.st_mtime_ns, stat.st_size)
+
+    def _load(self):
+        self._signature = self._file_signature()
+        config = Config(self.root_dir, self.user_data_path)
+        error = config.load()
+        if not error:
+            if self.config is not None:
+                logger.info("Reloaded config.yml")
+            self.config, self.error = config, None
+            return
+
+        error = f"Error opening config.yml; error='{error}'"
+        logger.error(error)
+        if self.config is None:
+            self.error = error
+        else:
+            logger.error("Keeping the previous configuration")
+
+    def refresh(self):
+        now = time.monotonic()
+        if now < self._next_check:
+            return
+        with self._lock:
+            if now < self._next_check:
+                return
+            self._next_check = now + self.interval
+            if self._file_signature() != self._signature:
+                self._load()
