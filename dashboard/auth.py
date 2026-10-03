@@ -20,7 +20,7 @@ class Auth:
         self.user = user
         self.groups = groups
         self.ip = ip
-        self.network_definitions = network_definitions
+        self.network_definitions = network_definitions or {}
         self.session_cookie = session_cookie
         self.authelia_url = authelia_url
         self.authelia_timeout = authelia_timeout

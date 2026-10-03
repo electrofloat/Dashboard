@@ -68,6 +68,13 @@ def test_networks2():
     assert not auth.match_network(["10.0.1.0/24", "10.0.2.0/24"])
 
 
+def test_networks_without_definitions():
+    auth = Auth("", "", "10.0.0.1")
+
+    assert auth.match_network(["10.0.0.0/24"])
+    assert not auth.match_network(["10.0.1.0/24", "internal"])
+
+
 def test_dev_fake_auth_requires_explicit_opt_in(monkeypatch):
     auth = Auth("", "", "10.0.0.1", None, "", "https://auth.example.org")
 

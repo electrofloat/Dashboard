@@ -55,6 +55,20 @@ def test_stream_is_valid_json(tmp_path):
     assert "&#34;quoted&#34;" in html
 
 
+def test_folder_deep_link_after_start(tmp_path):
+    client = make_client(tmp_path)
+    app = client.application
+    digest = next(iter(app.extensions["dashboard.config"].id_hash))
+
+    assert client.get(f"/folder/{digest}/", headers=USER, environ_base=PROXY).status_code == 200
+    events = read_events(client.get(f"/stream-tiles/{digest}/", headers=USER, environ_base=PROXY))
+    assert len(events) == 2
+
+    assert client.get("/folder/unknown/").status_code == 404
+    assert client.get("/stream-tiles/unknown/").status_code == 404
+    assert client.get(f"/folder/{digest}/extra'text").status_code == 404
+
+
 def test_untrusted_peer_headers_ignored(tmp_path):
     client = make_client(tmp_path)
 

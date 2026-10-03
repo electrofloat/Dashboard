@@ -21,7 +21,7 @@ services:
       - "5000"
     restart: unless-stopped
     volumes:
-      - user-data/:/app/user-data:ro
+      - ./user-data:/app/user-data:ro
     healthcheck:
       disable: true
 ```

@@ -1,4 +1,7 @@
-from dashboard.config import ROOT_DIR, CommonTile, Config
+import base64
+import hashlib
+
+from dashboard.config import ROOT_DIR, CommonTile, Config, folder_digest
 
 
 def match_url_test_hosts(url):
@@ -14,7 +17,7 @@ def assert_folder(config, subpath, request_headers, assert_count, folder_assert_
     for i, result in enumerate(config.stream_active_tiles(subpath, request_headers, callback)):
         index, tile = result
         if tile.title == "foldertitle":
-            folder = tile.get_url_digest(index)
+            folder = tile.digest
 
     assert i == (assert_count - 1)
     if not folder:
@@ -111,6 +114,7 @@ def test_config_common(mocker):
     assert common_tile.get_icon("di-icon") == "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/icon.png"
     assert common_tile.get_icon("") == ""
     assert common_tile.get_icon(None) == ""
+    assert common_tile.get_icon("https://example.org/icon.png") == "https://example.org/icon.png"
 
     assert config.get_background_img() == Config.USERDATA_URL + "backgrounds/background.jpg"
     config.yaml_config["app_config"]["background"] = "https://example.org/background.jpg"
@@ -154,9 +158,24 @@ def test_config_deny(mocker):
                 "type": "folder",
                 "title": "foldertitle",
                 "tiles": [
-                    {"type": "tile", "title": "testtitle2", "url": "https://test1url.com", "deny": ["user:testuser"]},
-                    {"type": "tile", "title": "testtitle2", "url": "https://test2url.com", "deny": ["user:testuser"]},
-                    {"type": "tile", "title": "testtitle3", "url": "https://test4url.com", "deny": ["user:testuser1"]},
+                    {
+                        "type": "tile",
+                        "title": "testtitle2",
+                        "url": "https://test1url.com",
+                        "deny": ["user:testuser"],
+                    },
+                    {
+                        "type": "tile",
+                        "title": "testtitle2",
+                        "url": "https://test2url.com",
+                        "deny": ["user:testuser"],
+                    },
+                    {
+                        "type": "tile",
+                        "title": "testtitle3",
+                        "url": "https://test4url.com",
+                        "deny": ["user:testuser1"],
+                    },
                 ],
             },
         ],
@@ -225,7 +244,12 @@ def test_config_deny_from_network(mocker):
                         "deny": ["user:testuser"],
                         "networks": ["internal"],
                     },
-                    {"type": "tile", "title": "testtitle3", "url": "https://test4url.com", "deny": ["user:testuser1"]},
+                    {
+                        "type": "tile",
+                        "title": "testtitle3",
+                        "url": "https://test4url.com",
+                        "deny": ["user:testuser1"],
+                    },
                 ],
             },
         ],
@@ -290,7 +314,12 @@ def test_config_allow(mocker):
                         "url": "https://test2url.com",
                         "allow": ["user:testuser"],
                     },
-                    {"type": "tile", "title": "testtitle3", "url": "https://test4url.com", "allow": ["user:testuser1"]},
+                    {
+                        "type": "tile",
+                        "title": "testtitle3",
+                        "url": "https://test4url.com",
+                        "allow": ["user:testuser1"],
+                    },
                 ],
             },
         ],
@@ -348,7 +377,12 @@ def test_config_allow_from_network(mocker):
                         "allow": ["user:testuser"],
                         "networks": ["internal"],
                     },
-                    {"type": "tile", "title": "testtitle3", "url": "https://test4url.com", "allow": ["user:testuser1"]},
+                    {
+                        "type": "tile",
+                        "title": "testtitle3",
+                        "url": "https://test4url.com",
+                        "allow": ["user:testuser1"],
+                    },
                 ],
             },
         ],
@@ -376,6 +410,84 @@ def test_config_allow_from_network(mocker):
     assert_folder(config, "/", request_headers, 1, 1)
 
 
+def nested_folder_config():
+    return {
+        "tiles": [
+            {
+                "type": "folder",
+                "title": "outer",
+                "tiles": [
+                    {
+                        "type": "folder",
+                        "title": "outer",
+                        "tiles": [
+                            {
+                                "type": "tile",
+                                "title": "hidden",
+                                "url": "https://hidden.com",
+                                "allow": ["user:nobody"],
+                            }
+                        ],
+                    },
+                    {
+                        "type": "tile",
+                        "title": "visible",
+                        "url": "https://visible.com",
+                        "allow": ["user:testuser"],
+                    },
+                    {
+                        "type": "folder",
+                        "title": "deep",
+                        "tiles": [
+                            {
+                                "type": "tile",
+                                "title": "deeptile",
+                                "url": "https://deep.com",
+                                "allow": ["user:testuser"],
+                            }
+                        ],
+                    },
+                ],
+            },
+            {
+                "type": "tile",
+                "title": "filler",
+                "url": "https://filler.com",
+                "allow": ["user:testuser"],
+            },
+        ]
+    }
+
+
+def test_nested_folder_permission():
+    config = Config(ROOT_DIR, "")
+    assert not config.load(nested_folder_config())
+
+    request_headers = {"remote_user": "testuser"}
+    tiles = dict((tile.title, tile) for _, tile in config.stream_active_tiles("", request_headers))
+    assert "outer" in tiles and tiles["outer"].type == "folder"
+
+    inner_titles = sorted(tile.title for _, tile in config.stream_active_tiles(tiles["outer"].digest, request_headers))
+    assert inner_titles == ["deep", "visible"]
+
+
+def test_folder_digests_known_after_load():
+    config = Config(ROOT_DIR, "")
+    assert not config.load(nested_folder_config())
+
+    assert len(config.id_hash) == 3
+    for digest in config.id_hash:
+        assert config.get_tiles(digest)
+        assert config.get_tiles(digest + "/")
+    assert config.get_tiles("unknown") is None
+
+
+def test_top_level_folder_digest_unchanged():
+    expected = base64.urlsafe_b64encode(hashlib.sha256(b"HomeAssistant2").digest()).decode().rstrip("=")[:12]
+    assert folder_digest("HomeAssistant", 2) == expected
+    assert folder_digest("HomeAssistant", 2, "parent") != expected
+
+
 def test_client_ip():
     config = Config(ROOT_DIR, "")
     assert not config.load(
@@ -398,6 +510,16 @@ def test_invalid_trusted_proxy():
     assert config.load(
         {
             "app_config": {"trusted_proxies": ["not-a-network"]},
+            "tiles": [{"type": "tile", "title": "t", "url": "https://t.com"}],
+        }
+    )
+
+
+def test_zero_authelia_timeout_rejected():
+    config = Config(ROOT_DIR, "")
+    assert config.load(
+        {
+            "app_config": {"authelia_timeout": 0},
             "tiles": [{"type": "tile", "title": "t", "url": "https://t.com"}],
         }
     )

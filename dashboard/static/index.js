@@ -4,12 +4,19 @@ document.addEventListener("DOMContentLoaded", function () {
   const eventSource = new EventSource(container.dataset.streamUrl);
   loader.style.display = '';
 
+  function stop() {
+    eventSource.close();
+    loader.style.display = 'none';
+  }
+
+  // Without this the browser reconnects on its own and every tile would be added twice
+  eventSource.onerror = stop;
+
   eventSource.onmessage = function (e) {
     const data = JSON.parse(e.data);
 
     if (data.done) {
-      eventSource.close();
-      loader.style.display = 'none';
+      stop();
       return;
     }
 

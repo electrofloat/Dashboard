@@ -88,8 +88,8 @@
           "pattern": "^http.*"
         },
         "authelia_timeout": {
-          "type": "integer",
-          "minimum": 0
+          "type": "number",
+          "exclusiveMinimum": 0
         },
         "trusted_proxies": {
           "type": "array",

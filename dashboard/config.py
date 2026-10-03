@@ -14,6 +14,12 @@ from dashboard.auth import Auth
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
+def folder_digest(title, index, parent=""):
+    id = f"{parent}/{title}{index}" if parent else f"{title}{index}"
+    digest = hashlib.sha256(id.encode()).digest()
+    return base64.urlsafe_b64encode(digest).decode().rstrip("=")[:12]
+
+
 class CommonTile:
     DEFAULT_BACKGROUND = "#161b1f"
 
@@ -33,6 +39,8 @@ class CommonTile:
 
         if icon[:2] == "di":
             return "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/{}.png".format(icon[3:])
+        if re.search("^http(s)?://", icon):
+            return icon
 
         return Config.USERDATA_URL + f"icons/{icon}"
 
@@ -51,17 +59,11 @@ class Tile(CommonTile):
 
 
 class Folder(CommonTile):
-    def __init__(self, tile_data, index):
+    def __init__(self, tile_data, index, digest):
         super().__init__(tile_data, index)
-        self.url = f"/folder/{self.get_url_digest(index)}/"
+        self.digest = digest
+        self.url = f"/folder/{digest}/"
         self.tiles = tile_data.get("tiles", None)
-
-    def get_url_digest(self, index):
-        length = 12
-        id = self.title + str(index)
-        digest = hashlib.sha256(id.encode()).digest()
-        encoded = base64.urlsafe_b64encode(digest).decode().rstrip("=")
-        return encoded[:length]
 
 
 class Config:
@@ -71,12 +73,13 @@ class Config:
     def __init__(self, root_dir=ROOT_DIR, user_data_path=""):
         self.user_data_path = user_data_path
         self.root_dir = root_dir
+        self.yaml_config = None
         self.app_config = None
         self.authelia_url = None
         self.authelia_timeout = 5
         self.trusted_proxies = None
-        self.auth = None
         self.id_hash = {}
+        self.folder_digests = {}
 
     def validate_network(self):
         network_definitions = self.yaml_config.get("network", None)
@@ -94,21 +97,34 @@ class Config:
             except ValueError as e:
                 return e
 
-        for tile in self.yaml_config["tiles"]:
-            networks = tile.get("networks", None)
-            if not networks:
+        def validate_tiles(tiles):
+            for tile in tiles:
+                if tile["type"] == "folder":
+                    error = validate_tiles(tile["tiles"])
+                    if error:
+                        return error
+                    continue
+
+                for network in tile.get("networks", None) or []:
+                    try:
+                        ipaddress.ip_network(network)
+                    except ValueError as e:
+                        if not network_definitions:
+                            return e
+                        if network_definitions.get(network, None) is None:
+                            return e
+            return None
+
+        return validate_tiles(self.yaml_config["tiles"])
+
+    def index_folders(self, tiles, parent=""):
+        for index, tile_data in enumerate(tiles):
+            if tile_data["type"] != "folder":
                 continue
-
-            for network in networks:
-                try:
-                    ipaddress.ip_network(network)
-                except ValueError as e:
-                    if not network_definitions:
-                        return e
-                    if network_definitions.get(network, None) is None:
-                        return e
-
-        return None
+            digest = folder_digest(tile_data["title"], index, parent)
+            self.id_hash[digest] = tile_data["tiles"]
+            self.folder_digests[id(tile_data)] = digest
+            self.index_folders(tile_data["tiles"], digest)
 
     def load(self, from_var=None):
         try:
@@ -141,6 +157,10 @@ class Config:
         networks_invalid = self.validate_network()
         if networks_invalid:
             return networks_invalid
+
+        self.id_hash = {}
+        self.folder_digests = {}
+        self.index_folders(self.yaml_config["tiles"])
 
         self.app_config = self.yaml_config.get("app_config", None)
         if self.app_config:
@@ -200,7 +220,10 @@ class Config:
         if not settings:
             return False
 
-        auth = Auth(request_headers.get("remote_user", None), request_headers.get("remote_groups", None))
+        auth = Auth(
+            request_headers.get("remote_user", None),
+            request_headers.get("remote_groups", None),
+        )
         return auth.match(settings)
 
     def get_app_config(self, request_headers):
@@ -219,65 +242,47 @@ class Config:
 
         return self.id_hash.get(folder_id, None)
 
-    def is_tile_permitted(self, tile):
-        if not self.auth:
-            return False
-
-        if self.auth.match(tile.get("deny", None)) and (
-            self.auth.match_network(tile["networks"]) if "networks" in tile else True
+    def is_tile_permitted(self, auth, tile):
+        if auth.match(tile.get("deny", None)) and (
+            auth.match_network(tile["networks"]) if "networks" in tile else True
         ):
             return False
 
         skip_authelia = False
         if "allow" in tile:
-            if not self.auth.match(tile.get("allow", None)):
+            if not auth.match(tile.get("allow", None)):
                 return False
-            if not self.auth.match_network(tile.get("networks", None)):
+            if not auth.match_network(tile.get("networks", None)):
                 return False
             skip_authelia = True
 
-        if (not skip_authelia) and ((not self.authelia_url) or (not self.auth.match_url(tile.get("url", None)))):
+        if (not skip_authelia) and ((not self.authelia_url) or (not auth.match_url(tile.get("url", None)))):
             return False
 
         return True
 
-    def is_folder_permitted(self, tiles):
-        if not self.auth:
-            return False
-
+    def is_folder_permitted(self, auth, tiles):
         for tile in tiles:
             if tile["type"] == "folder":
-                return self.is_folder_permitted(tile.get("tiles", None))
-
-            if self.is_tile_permitted(tile):
+                if self.is_folder_permitted(auth, tile["tiles"]):
+                    return True
+            elif self.is_tile_permitted(auth, tile):
                 return True
 
         return False
 
-    def get_tile(self, index, tile_data):
-        if "type" not in tile_data or (tile_data["type"] != "tile" and tile_data["type"] != "folder"):
-            return None
-
-        if tile_data["type"] == "tile" and (("title" not in tile_data) or ("url" not in tile_data)):
-            return None
-        elif tile_data["type"] == "folder" and (("title" not in tile_data) or ("tiles" not in tile_data)):
-            return None
-
-        tile = None
+    def get_tile(self, auth, index, tile_data):
         if tile_data["type"] == "folder":
-            if not self.is_folder_permitted(tile_data["tiles"]):
+            if not self.is_folder_permitted(auth, tile_data["tiles"]):
                 return None
-            tile = Folder(tile_data, index)
-            self.id_hash[tile.get_url_digest(index)] = tile_data["tiles"]
-        else:
-            if not self.is_tile_permitted(tile_data):
-                return None
-            tile = Tile(tile_data, index)
+            return Folder(tile_data, index, self.folder_digests[id(tile_data)])
 
-        return tile
+        if not self.is_tile_permitted(auth, tile_data):
+            return None
+        return Tile(tile_data, index)
 
-    def stream_active_tiles(self, subpath, request_headers, callback=None):
-        self.auth = Auth(
+    def create_auth(self, request_headers):
+        return Auth(
             request_headers.get("remote_user", None),
             request_headers.get("remote_groups", None),
             request_headers.get("x_forwarded_for", None),
@@ -286,25 +291,22 @@ class Config:
             self.authelia_url,
             self.authelia_timeout,
         )
-        tiles = self.get_tiles(subpath) or []
 
-        def process(index, tile_data):
+    def stream_active_tiles(self, folder_id, request_headers, callback=None):
+        tiles = self.get_tiles(folder_id)
+        if not tiles:
+            return
+
+        auth = self.create_auth(request_headers)
+
+        for index, tile_data in enumerate(tiles):
             try:
-                tile = self.get_tile(index, tile_data)
-                if not tile:
-                    return (None, None)
+                tile = self.get_tile(auth, index, tile_data)
             except Exception:
-                return (None, None)
-
-            return (index, tile)
-
-        for i, t in enumerate(tiles):
-            index, tile = process(i, t)
+                continue
             if not tile:
                 continue
             if callback:
                 yield callback(index, tile)
             else:
                 yield (index, tile)
-
-        self.auth = None
