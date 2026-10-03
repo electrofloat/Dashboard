@@ -22,8 +22,8 @@ services:
     restart: unless-stopped
     volumes:
       - ./user-data:/app/user-data:ro
-    healthcheck:
-      disable: true
+    #healthcheck:
+    #  disable: true
 ```
 
 The container runs as user id 1000, so the files in `user-data/` must be readable by that user.

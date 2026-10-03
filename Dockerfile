@@ -16,6 +16,8 @@ USER dashboard
 
 EXPOSE 5000
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s CMD wget -q -O /dev/null http://127.0.0.1:5000/healthz || exit 1
+
 WORKDIR /app
 
 # gthread lets slow Authelia checks of one page load run without blocking every other request

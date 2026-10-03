@@ -52,6 +52,11 @@ def get_request_headers(config):
     return request_headers
 
 
+@main.route("/healthz")
+def healthz():
+    return Response("ok", mimetype="text/plain")
+
+
 @main.route("/")
 def index():
     config = get_config()

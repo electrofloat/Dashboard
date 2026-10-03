@@ -17,5 +17,5 @@ services:
     restart: unless-stopped
     volumes:
       - .:/app/user-data:ro
-    healthcheck:
-      disable: true
+    #healthcheck:
+    #  disable: true

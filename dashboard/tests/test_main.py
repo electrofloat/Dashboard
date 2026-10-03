@@ -151,3 +151,8 @@ def test_security_headers(tmp_path):
     assert response.headers["X-Content-Type-Options"] == "nosniff"
     assert response.headers["X-Frame-Options"] == "DENY"
     assert "<script>" not in response.get_data(as_text=True)
+
+
+def test_healthz(tmp_path):
+    assert make_client(tmp_path).get("/healthz").status_code == 200
+    assert make_client(tmp_path, "tiles: []\n").get("/healthz").status_code == 500
