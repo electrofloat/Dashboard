@@ -44,6 +44,9 @@ Edit the contents of `user-data/config.yml`. An example can be found [here](./de
 Changes to `config.yml` are picked up within a few seconds, without a restart. If the changed file is invalid, the
 error is logged and the previous configuration stays active.
 
+Type in the search box, or press `/` to jump to it, to filter the tiles of the current page. `Enter` opens the first
+match and `Escape` clears the search.
+
 ### Security
 
 The dashboard identifies users by the `Remote-User` and `Remote-Groups` headers set by your reverse proxy after

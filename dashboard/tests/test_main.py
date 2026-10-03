@@ -177,18 +177,6 @@ def test_background_url_escaped(tmp_path):
     assert 'url("/static/userdata/backgrounds/x\\27 \\29 ;background:red;/*")' in style
 
 
-def test_page_title(tmp_path):
-    client = make_client(tmp_path, CONFIG.replace("app_config:", "app_config:\n  title: Home Lab"))
-    digest = next(iter(client.application.extensions["dashboard.config"].config.id_hash))
-
-    assert "<title>Home Lab</title>" in client.get("/", headers=USER, environ_base=PROXY).get_data(as_text=True)
-    folder_page = client.get(f"/folder/{digest}/", headers=USER, environ_base=PROXY).get_data(as_text=True)
-    assert "<title>Folder - Home Lab</title>" in folder_page
-    assert "<title>Dashboard</title>" in make_client(tmp_path).get("/", headers=USER, environ_base=PROXY).get_data(
-        as_text=True
-    )
-
-
 def tile_config(*titles):
     tiles = "".join(
         f"  - {{type: tile, title: {t}, url: 'https://{t}.example.org', allow: ['user:testuser']}}\n" for t in titles
@@ -231,3 +219,23 @@ def test_config_reload_interval(tmp_path):
 
     (tmp_path / "config.yml").write_text(tile_config("first", "second"))
     assert stream_titles(client) == ["first"]
+
+
+def test_page_title(tmp_path):
+    client = make_client(tmp_path, CONFIG.replace("app_config:", "app_config:\n  title: Home Lab"))
+    digest = next(iter(client.application.extensions["dashboard.config"].config.id_hash))
+
+    assert "<title>Home Lab</title>" in client.get("/", headers=USER, environ_base=PROXY).get_data(as_text=True)
+    folder_page = client.get(f"/folder/{digest}/", headers=USER, environ_base=PROXY).get_data(as_text=True)
+    assert "<title>Folder - Home Lab</title>" in folder_page
+
+
+def test_search_data(tmp_path):
+    client = make_client(tmp_path)
+    events = read_events(client.get("/stream-tiles/", headers=USER, environ_base=PROXY))
+    folder = next(event["html"] for event in events if event.get("id") == 1)
+
+    assert 'data-search="Folder "' in folder
+    page = client.get("/", headers=USER, environ_base=PROXY).get_data(as_text=True)
+    assert 'id="search"' in page
+    assert "<title>Dashboard</title>" in page

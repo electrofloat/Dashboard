@@ -120,3 +120,11 @@
 .svg-inline--fa.fa-w-14 {
   width:.875em
 }
+
+.search-box {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(300px, calc(100% - 100px));
+}
