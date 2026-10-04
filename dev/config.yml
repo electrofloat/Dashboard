@@ -34,6 +34,11 @@ app_config:
   #authelia_backoff: 10
 
   # Optional
+  # Number of tiles checked against Authelia at the same time, default is 1.
+  # Higher values can be slower with some Authelia setups.
+  #authelia_parallel_checks: 1
+
+  # Optional
   # The addresses of your reverse proxies (CIDR form). If set, the Remote-User, Remote-Groups and X-Forwarded-For
   # headers are only accepted from these addresses, requests from anywhere else are treated as anonymous.
   # If not set, these headers are accepted from anyone, so the dashboard must only be reachable through the proxy.

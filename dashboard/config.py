@@ -17,8 +17,8 @@ from dashboard.auth import DEFAULT_COOKIE_NAME, Auth, AutheliaBackoff, Backoff, 
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Upper bound for the parallel tile authorization checks of a single request
-MAX_WORKERS = 8
+# Number of tiles of a single request checked at the same time, parallel checks can be slower with some Authelia setups
+DEFAULT_PARALLEL_CHECKS = 1
 # Seconds after which a tile stream gives up waiting for the remaining tiles
 STREAM_TIMEOUT = 30
 DEFAULT_CACHE_TTL = 30
@@ -97,6 +97,7 @@ class Config:
         self.authelia_cookie_name = DEFAULT_COOKIE_NAME
         self.authz_cache = TTLCache(DEFAULT_CACHE_TTL)
         self.authelia_backoff = Backoff(DEFAULT_AUTHELIA_BACKOFF)
+        self.parallel_checks = DEFAULT_PARALLEL_CHECKS
         self.title = DEFAULT_TITLE
         self.trusted_proxies = None
         self.id_hash = {}
@@ -203,6 +204,7 @@ class Config:
             self.authelia_cookie_name = self.app_config.get("authelia_cookie_name", DEFAULT_COOKIE_NAME)
             self.authz_cache = TTLCache(self.app_config.get("authelia_cache_ttl", DEFAULT_CACHE_TTL))
             self.authelia_backoff = Backoff(self.app_config.get("authelia_backoff", DEFAULT_AUTHELIA_BACKOFF))
+            self.parallel_checks = self.app_config.get("authelia_parallel_checks", DEFAULT_PARALLEL_CHECKS)
             self.title = self.app_config.get("title", DEFAULT_TITLE)
             trusted_proxies = self.app_config.get("trusted_proxies", None)
             if trusted_proxies:
@@ -280,6 +282,24 @@ class Config:
             return self.yaml_config["tiles"]
 
         return self.id_hash.get(folder_id, None)
+
+    def is_folder_visible(self, folder_id, request_headers):
+        # A folder the user may not see must look the same as one that doesn't exist
+        folder_id = (folder_id or "").strip("/")
+        if not folder_id:
+            return True
+
+        tiles = self.get_tiles(folder_id)
+        if not tiles:
+            return False
+
+        try:
+            return self.is_folder_permitted(self.create_auth(request_headers), tiles)
+        except AutheliaBackoff:
+            return False
+        except Exception as error:
+            logger.warning("Authorization check failed for folder '%s': %s", folder_id, error)
+            return False
 
     def has_subfolders(self, folder_id):
         return any(tile_data["type"] == "folder" for tile_data in self.get_tiles(folder_id) or [])
@@ -394,7 +414,19 @@ class Config:
                 )
                 return None
 
-        executor = concurrent.futures.ThreadPoolExecutor(max_workers=min(MAX_WORKERS, len(entries)))
+        workers = min(self.parallel_checks, len(entries))
+        if workers == 1:
+            deadline = time.monotonic() + STREAM_TIMEOUT
+            for key, index, tile_data in entries:
+                if time.monotonic() > deadline:
+                    logger.warning("Streaming tiles timed out")
+                    return
+                tile = process(index, tile_data)
+                if tile:
+                    yield (key, tile)
+            return
+
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=workers)
         try:
             futures = {executor.submit(process, index, tile_data): key for key, index, tile_data in entries}
             for future in concurrent.futures.as_completed(futures, timeout=STREAM_TIMEOUT):

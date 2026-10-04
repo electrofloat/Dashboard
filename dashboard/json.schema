@@ -108,6 +108,10 @@
           "type": "integer",
           "minimum": 0
         },
+        "authelia_parallel_checks": {
+          "type": "integer",
+          "minimum": 1
+        },
         "title": { "type": "string", "minLength": 1 },
         "trusted_proxies": {
           "type": "array",

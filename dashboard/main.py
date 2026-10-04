@@ -77,10 +77,11 @@ def index():
 def route_folder(subpath):
     config = get_config()
     folder_id = subpath.strip("/")
-    if (not folder_id) or (not config.get_tiles(folder_id)):
+    request_headers = get_request_headers(config)
+    if (not folder_id) or (not config.is_folder_visible(folder_id, request_headers)):
         abort(404)
 
-    conf = config.get_app_config(get_request_headers(config))
+    conf = config.get_app_config(request_headers)
 
     parent = config.folder_parents.get(folder_id)
     if parent:
@@ -102,10 +103,10 @@ def route_folder(subpath):
 @main.route("/stream-tiles/<path:subpath>")
 def route_stream_tiles(subpath):
     config = get_config()
-    if not config.get_tiles(subpath):
+    request_headers = get_request_headers(config)
+    if not config.is_folder_visible(subpath, request_headers):
         abort(404)
 
-    request_headers = get_request_headers(config)
     recursive = request.args.get("recursive") == "1"
 
     def generate():

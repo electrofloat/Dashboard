@@ -664,3 +664,44 @@ def test_nested_tiles():
 
     assert config.has_subfolders("") and config.has_subfolders("a")
     assert not config.has_subfolders("b")
+
+
+def test_parallel_checks(mocker):
+    mocker.patch("dashboard.auth.Auth.match_url", side_effect=match_url_test_hosts)
+    tiles = [{"type": "tile", "title": f"t{i}", "url": f"https://test{i}.com"} for i in range(6)]
+    results = []
+    for parallel_checks in [None, 4]:
+        app_config = {"authelia_url": "https://auth.example.org"}
+        if parallel_checks:
+            app_config["authelia_parallel_checks"] = parallel_checks
+        config = Config(ROOT_DIR, "")
+        assert not config.load({"app_config": app_config, "tiles": tiles})
+        assert config.parallel_checks == (parallel_checks or 1)
+        headers = {"authelia_session": "s", "x_forwarded_for": "10.0.0.1"}
+        results.append(sorted(index for index, _ in config.stream_active_tiles("", headers)))
+
+    assert results[0] == results[1] == [0, 4, 5]
+
+    config = Config(ROOT_DIR, "")
+    assert config.load({"app_config": {"authelia_parallel_checks": 0}, "tiles": tiles})
+
+
+def test_folder_not_visible_when_check_fails(mocker):
+    config = Config(ROOT_DIR, "")
+    assert not config.load(
+        {
+            "app_config": {"authelia_url": "https://auth.example.org"},
+            "tiles": [{"type": "folder", "id": "f", "title": "f", "tiles": [{"type": "tile", "title": "a", "url": "https://a.com"}]}],
+        }
+    )
+    headers = {"authelia_session": "s", "x_forwarded_for": "10.0.0.1"}
+
+    mocker.patch("dashboard.auth.Auth.match_url", return_value=True)
+    assert config.is_folder_visible("f", headers)
+    assert config.is_folder_visible("", headers)
+    assert not config.is_folder_visible("missing", headers)
+
+    mocker.patch("dashboard.auth.Auth.match_url", side_effect=AutheliaBackoff())
+    assert not config.is_folder_visible("f", headers)
+    mocker.patch("dashboard.auth.Auth.match_url", side_effect=RuntimeError("boom"))
+    assert not config.is_folder_visible("f", headers)

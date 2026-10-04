@@ -278,3 +278,28 @@ def test_static_urls_are_versioned(tmp_path):
     assert "max-age=31536000" in cache_control and "immutable" in cache_control
     assert "no-cache" not in cache_control
     assert "max-age" not in client.get("/static/index.js").headers["Cache-Control"]
+
+
+def test_hidden_folder_looks_like_missing(tmp_path):
+    client = make_client(
+        tmp_path,
+        CONFIG
+        + """
+  - type: folder
+    id: secret
+    title: Secret
+    tiles:
+      - {type: tile, title: S, url: 'https://s.example.org', allow: ['user:someoneelse']}
+""",
+    )
+    digest = next(iter(client.application.extensions["dashboard.config"].config.id_hash))
+    missing = client.get("/folder/unknown/", headers=USER, environ_base=PROXY)
+
+    for headers, folder_id in [({}, digest), ({"Remote-User": "other"}, digest), (USER, "secret")]:
+        for url in [f"/folder/{folder_id}/", f"/stream-tiles/{folder_id}/"]:
+            response = client.get(url, headers=headers, environ_base=PROXY)
+            assert response.status_code == 404
+            assert response.get_data() == missing.get_data()
+
+    assert client.get(f"/folder/{digest}/", headers=USER, environ_base=PROXY).status_code == 200
+    assert client.get(f"/stream-tiles/{digest}/", headers=USER, environ_base=PROXY).status_code == 200
