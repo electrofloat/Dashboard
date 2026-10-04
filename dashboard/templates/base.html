@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
     {% endblock %}
     {% block scripts %}{% endblock %}
-    <link rel="preload" as="image" href="{{ config.appconfig.background_img }}">
+    <link rel="preload" as="image" href="{{ config.appconfig.background_img|versioned }}">
 </head>
 
 <body>

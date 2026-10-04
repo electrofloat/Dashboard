@@ -2,7 +2,7 @@
         <section class="item-container tag-0-dash">
             <div class="item" style="background-color: {{tile.background_color}}">
                 <div class="app-icon-container">
-                  {% if tile.icon %}<img class="app-icon" src="{{ tile.icon }}" alt="">{% endif %}
+                  {% if tile.icon %}<img class="app-icon" src="{{ tile.icon|versioned }}" alt="">{% endif %}
                 </div>
                 <div class="details">
                     {% if path %}<div class="path {{tile.foreground_color}}">{{ path }}</div>{% endif %}

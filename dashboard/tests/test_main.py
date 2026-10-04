@@ -303,3 +303,38 @@ def test_hidden_folder_looks_like_missing(tmp_path):
 
     assert client.get(f"/folder/{digest}/", headers=USER, environ_base=PROXY).status_code == 200
     assert client.get(f"/stream-tiles/{digest}/", headers=USER, environ_base=PROXY).status_code == 200
+
+
+def test_background_and_icon_urls_are_versioned(tmp_path):
+    (tmp_path / "backgrounds").mkdir()
+    (tmp_path / "backgrounds" / "bg.jpg").write_bytes(b"background")
+    (tmp_path / "icons").mkdir()
+    (tmp_path / "icons" / "i.png").write_bytes(b"icon")
+    client = make_client(
+        tmp_path,
+        """
+app_config:
+  trusted_proxies: ['172.16.0.0/12']
+  background: bg.jpg
+tiles:
+  - {type: tile, title: T, url: 'https://t.example.org', icon: i.png, allow: ['user:testuser']}
+  - {type: tile, title: M, url: 'https://m.example.org', icon: missing.png, allow: ['user:testuser']}
+""",
+    )
+    version = hashlib.sha256(b"background").hexdigest()[:12]
+
+    page = client.get("/", headers=USER, environ_base=PROXY).get_data(as_text=True)
+    assert f'href="/static/userdata/backgrounds/bg.jpg?v={version}"' in page
+    assert f"url(&#34;/static/userdata/backgrounds/bg.jpg?v={version}&#34;)" in page
+
+    cache_control = client.get(f"/static/userdata/backgrounds/bg.jpg?v={version}").headers["Cache-Control"]
+    assert "max-age=31536000" in cache_control and "immutable" in cache_control
+
+    events = read_events(client.get("/stream-tiles/", headers=USER, environ_base=PROXY))
+    icons = {event["id"]: event["html"] for event in events if "html" in event}
+    assert f'src="/static/userdata/icons/i.png?v={hashlib.sha256(b"icon").hexdigest()[:12]}"' in icons[0]
+    assert 'src="/static/userdata/icons/missing.png"' in icons[1]
+
+    client = make_client(tmp_path)
+    page = client.get("/", headers=USER, environ_base=PROXY).get_data(as_text=True)
+    assert re.search(r'href="/static/background\.jpg\?v=[0-9a-f]{12}"', page)

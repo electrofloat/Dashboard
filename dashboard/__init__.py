@@ -3,8 +3,9 @@ import logging
 import os
 
 from flask import Blueprint, Flask, request
+from werkzeug.security import safe_join
 
-from dashboard.config import ConfigReloader
+from dashboard.config import Config, ConfigReloader
 
 CONTENT_SECURITY_POLICY = "; ".join(
     [
@@ -36,28 +37,49 @@ def set_security_headers(response):
     return response
 
 
-def add_static_versions(app):
+def add_static_versions(app, user_data_path):
     versions = {}
 
-    @app.url_defaults
-    def static_version(endpoint, values):
-        if endpoint != "static" or "filename" not in values:
-            return
-        path = os.path.join(app.static_folder, values["filename"])
+    def file_version(folder, filename):
+        path = safe_join(folder, filename)
+        if not path:
+            return None
         try:
             mtime = os.stat(path).st_mtime_ns
         except OSError:
-            return
+            return None
         cached = versions.get(path)
         if not cached or cached[0] != mtime:
             with open(path, "rb") as f:
                 cached = (mtime, hashlib.sha256(f.read()).hexdigest()[:12])
             versions[path] = cached
-        values["v"] = cached[1]
+        return cached[1]
+
+    @app.url_defaults
+    def static_version(endpoint, values):
+        if endpoint != "static" or "filename" not in values:
+            return
+        version = file_version(app.static_folder, values["filename"])
+        if version:
+            values["v"] = version
+
+    # The background and the icons come from config.yml as plain /static/... urls instead of url_for()
+    def versioned(url):
+        if not url:
+            return url
+        if url.startswith(Config.USERDATA_URL):
+            version = file_version(user_data_path, url[len(Config.USERDATA_URL) :])
+        elif url.startswith(Config.STATIC_URL):
+            version = file_version(app.static_folder, url[len(Config.STATIC_URL) :])
+        else:
+            return url
+        return f"{url}?v={version}" if version else url
+
+    app.jinja_env.filters["versioned"] = versioned
 
     @app.after_request
     def cache_versioned_static(response):
-        if request.endpoint == "static" and "v" in request.args and response.status_code == 200:
+        if request.endpoint in ("static", "userdata.static") and "v" in request.args and response.status_code == 200:
             response.cache_control.no_cache = None
             response.cache_control.public = True
             response.cache_control.max_age = 31536000
@@ -93,7 +115,7 @@ def create_app(user_data_path=None):
     )
     app.register_blueprint(blueprint)
 
-    add_static_versions(app)
+    add_static_versions(app, user_data_path)
     app.after_request(set_security_headers)
     app.jinja_env.filters["css_string"] = css_string
 
