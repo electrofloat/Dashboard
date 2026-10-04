@@ -641,17 +641,13 @@ def test_nested_tiles():
                             "type": "folder",
                             "id": "b",
                             "title": "B",
-                            "tiles": [
-                                {"type": "tile", "title": "b1", "url": "https://b1.com", "allow": ["user:testuser"]}
-                            ],
+                            "tiles": [{"type": "tile", "title": "b1", "url": "https://b1.com", "allow": ["user:testuser"]}],
                         },
                         {
                             "type": "folder",
                             "id": "empty",
                             "title": "Empty",
-                            "tiles": [
-                                {"type": "tile", "title": "h2", "url": "https://h2.com", "allow": ["user:nobody"]}
-                            ],
+                            "tiles": [{"type": "tile", "title": "h2", "url": "https://h2.com", "allow": ["user:nobody"]}],
                         },
                     ],
                 },

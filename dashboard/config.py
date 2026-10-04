@@ -285,9 +285,7 @@ class Config:
         return any(tile_data["type"] == "folder" for tile_data in self.get_tiles(folder_id) or [])
 
     def is_tile_permitted(self, auth, tile):
-        if auth.match(tile.get("deny", None)) and (
-            auth.match_network(tile["networks"]) if "networks" in tile else True
-        ):
+        if auth.match(tile.get("deny", None)) and (auth.match_network(tile["networks"]) if "networks" in tile else True):
             return False
 
         skip_authelia = False

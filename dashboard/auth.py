@@ -9,8 +9,10 @@ import requests
 
 DEFAULT_COOKIE_NAME = "authelia_session"
 
+
 def dev_fake_auth():
     return os.environ.get("DASHBOARD_DEV_FAKE_AUTH") == "1"
+
 
 def _create_session():
     session = requests.Session()

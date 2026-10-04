@@ -93,12 +93,8 @@ tiles:
     )
 
     assert 'aria-label="Back"' not in client.get("/", headers=USER, environ_base=PROXY).get_data(as_text=True)
-    assert 'href="/" aria-label="Back"' in client.get("/folder/outer/", headers=USER, environ_base=PROXY).get_data(
-        as_text=True
-    )
-    assert 'href="/folder/outer/" aria-label="Back"' in client.get(
-        "/folder/inner/", headers=USER, environ_base=PROXY
-    ).get_data(as_text=True)
+    assert 'href="/" aria-label="Back"' in client.get("/folder/outer/", headers=USER, environ_base=PROXY).get_data(as_text=True)
+    assert 'href="/folder/outer/" aria-label="Back"' in client.get("/folder/inner/", headers=USER, environ_base=PROXY).get_data(as_text=True)
 
 
 def test_tile_label_naming(tmp_path):
@@ -181,17 +177,13 @@ def test_background_url_escaped(tmp_path):
 
 
 def tile_config(*titles):
-    tiles = "".join(
-        f"  - {{type: tile, title: {t}, url: 'https://{t}.example.org', allow: ['user:testuser']}}\n" for t in titles
-    )
+    tiles = "".join(f"  - {{type: tile, title: {t}, url: 'https://{t}.example.org', allow: ['user:testuser']}}\n" for t in titles)
     return f"app_config:\n  trusted_proxies: ['172.16.0.0/12']\ntiles:\n{tiles}"
 
 
 def stream_titles(client):
     events = read_events(client.get("/stream-tiles/", headers=USER, environ_base=PROXY))
-    return sorted(
-        event["html"].split('class="titl ')[1].split(">")[1].split("<")[0] for event in events if "html" in event
-    )
+    return sorted(event["html"].split('class="titl ')[1].split(">")[1].split("<")[0] for event in events if "html" in event)
 
 
 def test_config_reload(tmp_path):
